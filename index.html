@@ -30,7 +30,7 @@
         width: 75vw;
         height: 75vh;
         padding: 10px;
-        background-color: white;
+        background-color: #060714;
         border-radius: 15px;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         border: 1px solid #ddd;
@@ -88,6 +88,19 @@
 
       .modal-footer {
         border-top: 1px solid #444;
+      }
+
+      .lineRed {
+        fill: none;
+        stroke: red;
+        stroke-width: 2px;
+        opacity: 0.7;
+      }
+      .lineYellow {
+        fill: none;
+        stroke: yellow;
+        stroke-width: 2px;
+        opacity: 0.7;
       }
     </style>
   </head>
@@ -220,6 +233,8 @@
       integrity="sha384-0pUGZvbkm6XF6gxjEnlmuGrJXVbNuzT9qBBavbLwCsOGabYfZo0T0to5eqruptLy"
       crossorigin="anonymous"
     ></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/topojson@3"></script>
     <script type="module">
       import {
         select,
@@ -247,9 +262,15 @@
       dayjs.extend(utc);
 
       const firebaseConfig = {
-        // ENTER_YOUR_FIREBASE_CONFIGURATION
+        apiKey: "AIzaSyDzNSCSlTiMSBxf7zQxhu3dndEvuD2dDvU",
+        authDomain: "attack-project-e76d9.firebaseapp.com",
+        projectId: "attack-project-e76d9",
+        storageBucket: "attack-project-e76d9.appspot.com",
+        messagingSenderId: "695858311909",
+        appId: "1:695858311909:web:e782027cd98f883c991a0c",
+        measurementId: "G-83WY3CG3VN",
       };
-      const ipInfoToken = "ENTER_YOUR_IPINFO_TOKEN";
+      const ipInfoToken = "3949280a8aa576";
 
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
@@ -458,73 +479,216 @@
       }
 
       function renderMarkerByStatus(el) {
-        const ipAddress = el.VictimIp;
-        let marker, startPulseAnimation;
+        const sourceIP = el.sourceIp;
+        const destinationIP = el.VictimIp;
+        let startPulseAnimation, marker;
 
-        fetch(`https://ipinfo.io/${ipAddress}/geo?token=${ipInfoToken}`)
-          .then((response) => response.json())
-          .then((data) => {
-            const [lat, lon] = data.loc.split(",");
-            const coords = projection([lon, lat]);
-
-            function createPulse(className) {
-              const pulse = g
-                .append("circle")
-                .attr("class", className)
-                .attr("cx", coords[0])
-                .attr("cy", coords[1])
-                .attr("r", 5)
-                .attr("opacity", 0.7);
-
-              pulse
-                .transition()
-                .duration(1500)
-                .ease(easeCubicInOut)
-                .attr("r", 15)
-                .attr("opacity", 0)
-                .on("end", () => {
-                  pulse.remove();
-                  if (startPulseAnimation && marker && !marker.empty()) {
-                    createPulse(className);
-                  }
-                });
-            }
-
-            function createMarker(className) {
-              marker = g
-                .append("circle")
-                .attr("class", className)
-                .attr("cx", coords[0])
-                .attr("cy", coords[1])
-                .attr("r", 5)
-                .on("mouseover", (event) => showTooltip(event, el))
-                .on("mouseout", hideTooltip);
-
-              startPulseAnimation = true;
-              createPulse(
-                className === "markerRed" ? "pulseRed" : "pulseYellow"
-              );
-            }
-
-            if (el.Status === "On-going") {
-              createMarker(
-                el.Severity.includes("red /") ? "markerRed" : "markerYellow"
-              );
-            }
-
-            // Listener untuk memantau perubahan status
-            onSnapshot(doc(db, "DDoSAttack", el.id), (docSnapshot) => {
-              const updatedData = docSnapshot.data();
-              if (updatedData.Status === "Recovered") {
-                marker.remove();
-                g.selectAll(".pulseRed, .pulseYellow").remove();
-                startPulseAnimation = false;
-              }
-            });
-          })
-          .catch((error) =>
-            console.error("Error fetching geolocation data:", error)
+        const getGeoLocation = (ip) =>
+          fetch(`https://ipinfo.io/${ip}/geo?token=3949280a8aa576`).then(
+            (response) => response.json()
           );
+        const getArrayGeolocation = (ips) => {
+          // Membuat array promises dari hasil fetch
+          const promises = ips.map((ip) =>
+            fetch(`https://ipinfo.io/${ip}/geo?token=3949280a8aa576`).then(
+              (response) => response.json()
+            )
+          );
+          // Mengembalikan promise yang menyelesaikan dengan array hasil
+          return Promise.all(promises);
+        };
+
+        Promise.all([
+          getArrayGeolocation(sourceIP),
+          getGeoLocation(destinationIP),
+        ]).then((locations) => {
+          const [sourceData, destinationData] = locations;
+
+          let sourceCoords = [];
+          sourceData.forEach((el) => {
+            let [sourceLat, sourceLon] = el.loc.split(",");
+            let sourceCoord = projection([sourceLon, sourceLat]);
+            sourceCoords.push(sourceCoord);
+          });
+
+          const [destLat, destLon] = destinationData.loc.split(",");
+
+          const destCoords = projection([destLon, destLat]);
+
+          g.append("circle")
+            .attr("cx", destCoords[0])
+            .attr("cy", destCoords[1])
+            .attr("r", 5)
+            .attr("class", "marker")
+            .append("title")
+            .text(`${destinationData.city}, ${destinationData.country}`);
+
+          function createPulse(className) {
+            const pulse = g
+              .append("circle")
+              .attr("class", className)
+              .attr("cx", destCoords[0])
+              .attr("cy", destCoords[1])
+              .attr("r", 5)
+              .attr("opacity", 0.7);
+
+            pulse
+              .transition()
+              .duration(1500)
+              .ease(easeCubicInOut)
+              .attr("r", 15)
+              .attr("opacity", 0)
+              .on("end", () => {
+                pulse.remove();
+                if (startPulseAnimation && marker && !marker.empty()) {
+                  createPulse(className);
+                }
+              });
+          }
+
+          let idx = 0;
+
+          function drawLine(className) {
+            const lineGenerator = d3
+              .line()
+              .x((d) => d[0])
+              .y((d) => d[1])
+              .curve(d3.curveBasis);
+
+            const points = [
+              [sourceCoords[idx][0], sourceCoords[idx][1]],
+              [
+                (sourceCoords[idx][0] + destCoords[0]) / 2,
+                sourceCoords[idx][1] - 100, // Adjust height for the curve
+              ],
+              [destCoords[0], destCoords[1]],
+            ];
+            let path;
+            if (className == "lineRed") {
+              path = g
+                .append("path")
+                .attr("d", lineGenerator(points))
+                .attr("class", "lineRed");
+            } else {
+              // .lineYellow
+              path = g
+                .append("path")
+                .attr("d", lineGenerator(points))
+                .attr("class", "lineYellow");
+            }
+
+            const totalLength = path.node().getTotalLength();
+
+            path
+              .attr("stroke-dasharray", totalLength + " " + totalLength)
+              .attr("stroke-dashoffset", totalLength)
+              .transition()
+              .duration(2000)
+              .ease(d3.easeCubicInOut)
+              .attr("stroke-dashoffset", 0)
+              .remove()
+              .on("end", () => {
+                if (startPulseAnimation && marker && !marker.empty()) {
+                  idx++;
+                  if (idx >= sourceCoords.length) {
+                    // reset idx
+                    idx = 0;
+                  }
+                  drawLine(className);
+                }
+              });
+          }
+
+          function createMarker(className) {
+            marker = g
+              .append("circle")
+              .attr("class", className)
+              .attr("cx", destCoords[0])
+              .attr("cy", destCoords[1])
+              .attr("r", 5)
+              .on("mouseover", (event) => showTooltip(event, el))
+              .on("mouseout", hideTooltip);
+
+            startPulseAnimation = true;
+            createPulse(className === "markerRed" ? "pulseRed" : "pulseYellow");
+            drawLine(className === "markerRed" ? "lineRed" : "lineYellow");
+          }
+
+          if (el.Status === "On-going") {
+            createMarker(
+              el.Severity.includes("red /") ? "markerRed" : "markerYellow"
+            );
+          }
+          // Listener untuk memantau perubahan status
+          onSnapshot(doc(db, "DDoSAttack", el.id), (docSnapshot) => {
+            const updatedData = docSnapshot.data();
+            if (updatedData.Status === "Recovered") {
+              marker.remove();
+              g.selectAll(".pulseRed, .pulseYellow").remove();
+              startPulseAnimation = false;
+            }
+          });
+        });
+        //   const ipAddress = el.VictimIp;
+        //   let marker, startPulseAnimation;
+        //   fetch(`https://ipinfo.io/${ipAddress}/geo?token=${ipInfoToken}`)
+        //     .then((response) => response.json())
+        //     .then((data) => {
+        //       const [lat, lon] = data.loc.split(",");
+        //       const coords = projection([lon, lat]);
+        //       function createPulse(className) {
+        //         const pulse = g
+        //           .append("circle")
+        //           .attr("class", className)
+        //           .attr("cx", coords[0])
+        //           .attr("cy", coords[1])
+        //           .attr("r", 5)
+        //           .attr("opacity", 0.7);
+        //         pulse
+        //           .transition()
+        //           .duration(1500)
+        //           .ease(easeCubicInOut)
+        //           .attr("r", 15)
+        //           .attr("opacity", 0)
+        //           .on("end", () => {
+        //             pulse.remove();
+        //             if (startPulseAnimation && marker && !marker.empty()) {
+        //               createPulse(className);
+        //             }
+        //           });
+        //       }
+        //       function createMarker(className) {
+        //         marker = g
+        //           .append("circle")
+        //           .attr("class", className)
+        //           .attr("cx", coords[0])
+        //           .attr("cy", coords[1])
+        //           .attr("r", 5)
+        //           .on("mouseover", (event) => showTooltip(event, el))
+        //           .on("mouseout", hideTooltip);
+        //         startPulseAnimation = true;
+        //         createPulse(
+        //           className === "markerRed" ? "pulseRed" : "pulseYellow"
+        //         );
+        //       }
+        //       if (el.Status === "On-going") {
+        //         createMarker(
+        //           el.Severity.includes("red /") ? "markerRed" : "markerYellow"
+        //         );
+        //       }
+        //       // Listener untuk memantau perubahan status
+        //       onSnapshot(doc(db, "DDoSAttack", el.id), (docSnapshot) => {
+        //         const updatedData = docSnapshot.data();
+        //         if (updatedData.Status === "Recovered") {
+        //           marker.remove();
+        //           g.selectAll(".pulseRed, .pulseYellow").remove();
+        //           startPulseAnimation = false;
+        //         }
+        //       });
+        //     })
+        //     .catch((error) =>
+        //       console.error("Error fetching geolocation data:", error)
+        //     );
       }
 
       function animateCountUpdate(element, newValue) {
@@ -843,18 +1007,17 @@
       const height = parseFloat(svg.style("height"));
 
       const projection = geoNaturalEarth1()
-        .center([120, -3])
-        .scale(1800)
+        .scale(250)
         .translate([width / 2, height / 2]);
 
       const pathGenerator = geoPath().projection(projection);
 
-      svg
-        .append("path")
-        .attr("d", pathGenerator({ type: "Sphere" }))
-        .attr("fill", "#060714");
+      const g = svg.append("g"); // Grup yang akan digunakan untuk zoom dan panning
 
-      const g = svg.append("g");
+      // Tambahkan sphere ke dalam grup `g`
+      g.append("path")
+        .attr("d", pathGenerator({ type: "Sphere" }))
+        .attr("fill", "black");
 
       svg.call(
         zoom()
@@ -864,14 +1027,12 @@
           })
       );
 
-      json(
-        "https://cdn.jsdelivr.net/npm/@trase/trase-atlas@1.1/files/indonesia.json"
-      )
+      json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
         .then((data) => {
-          const geojson = feature(data, data.objects.level2);
+          const countries = topojson.feature(data, data.objects.countries);
 
           g.selectAll("path")
-            .data(geojson.features)
+            .data(countries.features)
             .enter()
             .append("path")
             .attr("class", "land")
@@ -880,6 +1041,8 @@
             .text((d) => d.properties.name || "Unknown");
         })
         .catch((error) => console.error("Error fetching map data:", error));
+
+      // Kode untuk menu dan resize event
       const allSideMenu = document.querySelectorAll(
         "#sidebar .side-menu.top li a"
       );
