@@ -275,6 +275,61 @@
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
 
+      let onGoingYellowAttack = [];
+      let onGoingRedAttack = [];
+
+      function addOnGoingAttack(data) {
+        const currentTime = dayjs().utcOffset(7).toDate();
+        // cek apakah dia memenuhi syarat on-gooing
+        if (
+          data.Status === "On-going" ||
+          (data.EndTime && timestampToDate(data.EndTime) > currentTime)
+        ) {
+          // jika memenuhi, cek apakah dia merupakan red severity
+          if (data.Severity.includes("red /")) {
+            // jika iya, cek apakah id nya ada di onGoingRedAttack
+            if (!onGoingRedAttack.includes(data.id)) {
+              // jika tidak ada, push ke array onGoingRedAttack
+              onGoingRedAttack.push(data.id);
+            }
+          } else {
+            //  lakukan hal yang sama pada yellow attack
+            if (!onGoingYellowAttack.includes(data.id)) {
+              onGoingYellowAttack.push(data.id);
+            }
+          }
+        }
+      }
+
+      function removeOnGoingAttack(data) {
+        const currentTime = dayjs().utcOffset(7).toDate();
+        // cek apakah data memenuhi syarat on-going
+        if (
+          !(
+            data.Status === "On-going" ||
+            (data.EndTime && timestampToDate(data.EndTime) > currentTime)
+          )
+        ) {
+          // jika tidak memenuhi, cek apakah dia merupakan red severity
+          if (data.Severity.includes("red /")) {
+            // jika merupakan red severity, cek apakah dia ada di dalam onGoingRedAttack
+            if (onGoingRedAttack.includes(data.id)) {
+              // jika ada, filter array sehingga tidak ada nilai tersebut (hapus id data tersebut dari onGoingRedAttack)
+              onGoingRedAttack = onGoingRedAttack.filter(
+                (item) => item !== data.id
+              );
+            }
+          } else {
+            // lakukan hal yang sama pada yellow severity attack
+            if (onGoingYellowAttack.includes(data.id)) {
+              onGoingYellowAttack = onGoingYellowAttack.filter(
+                (item) => item !== data.id
+              );
+            }
+          }
+        }
+      }
+
       // Fungsi untuk mengonversi Timestamp ke Date
       function timestampToDate(timestamp) {
         return timestamp.toDate();
@@ -292,137 +347,224 @@
         if (currentTime >= startTime && currentTime <= endTime) {
           timeDifferenceInSeconds = (endTime - currentTime) / 1000;
         }
-        console.log(timeDifferenceInSeconds);
-
         if (timeDifferenceInSeconds > 0) {
-          const ipAddress = el.VictimIp;
-          startPulseAnimation = true;
+          const sourceIP = el.SourceIp;
+          const destinationIP = el.VictimIp;
+          let startPulseAnimation, marker;
 
-          fetch(`https://ipinfo.io/${ipAddress}/geo?token=${ipInfoToken}`)
-            .then((response) => response.json())
-            .then((data) => {
-              const [lat, lon] = data.loc.split(",");
-
-              const coords = projection([lon, lat]);
-
-              if (el.Severity.includes("red /")) {
-                // Buat marker dan simpan referensinya
-                var marker = g
-                  .append("circle")
-                  .attr("class", "markerRed")
-                  .attr("cx", coords[0])
-                  .attr("cy", coords[1])
-                  .attr("r", 5)
-                  .attr("fill", "red")
-                  .on("mouseover", (event) => showTooltip(event, el))
-                  .on("mouseout", hideTooltip);
-
-                // Buat animasi pulse
-                function createPulseRed() {
-                  var pulse = g
-                    .append("circle")
-                    .attr("class", "pulseRed")
-                    .attr("cx", coords[0])
-                    .attr("cy", coords[1])
-                    .attr("r", 5)
-                    .attr("opacity", 0.7);
-
-                  pulse
-                    .transition()
-                    .duration(1500) // Durasi animasi pulse
-                    .ease(easeCubicInOut)
-                    .attr("r", 15)
-                    .attr("opacity", 0)
-                    .on("end", () => {
-                      pulse.remove(); // Hapus pulse besar sebelum memulai animasi baru
-                      // Tambahkan kondisi untuk memastikan marker tidak kosong
-                      if (
-                        pulse &&
-                        marker &&
-                        !marker.empty() &&
-                        startPulseAnimation
-                      ) {
-                        createPulseRed(); // Ulangi animasi pulse
-                      }
-                    });
-                }
-                // Mulai animasi pulse
-                createPulseRed();
-
-                // Hapus marker dan pulse setelah durasi yang ditentukan
-                setTimeout(async () => {
-                  marker.remove();
-                  g.selectAll(".pulseRed").remove(); // Pastikan semua pulse dihapus
-                  startPulseAnimation = false;
-                  await resetAllAffterTimeout();
-                }, timeDifferenceInSeconds * 1000); // Konversi ke milidetik
-
-                setTimeout(() => {
-                  marker.remove();
-                  g.selectAll(".pulseRed").remove(); // Pastikan semua pulse dihapus
-                }, (timeDifferenceInSeconds + 1) * 1000); // Konversi ke milidetik
-              } else {
-                // severity yellow
-                // Buat marker dan simpan referensinya
-                var marker = g
-                  .append("circle")
-                  .attr("class", "markerYellow")
-                  .attr("cx", coords[0])
-                  .attr("cy", coords[1])
-                  .attr("r", 5)
-                  .attr("fill", "yellow")
-                  .on("mouseover", (event) => showTooltip(event, el))
-                  .on("mouseout", hideTooltip);
-
-                // Buat animasi pulse
-                function createPulseYellow() {
-                  var pulse = g
-                    .append("circle")
-                    .attr("class", "pulseYellow")
-                    .attr("cx", coords[0])
-                    .attr("cy", coords[1])
-                    .attr("r", 5)
-                    .attr("opacity", 0.7);
-
-                  pulse
-                    .transition()
-                    .duration(1500) // Durasi animasi pulse
-                    .ease(easeCubicInOut)
-                    .attr("r", 15)
-                    .attr("opacity", 0)
-                    .on("end", () => {
-                      pulse.remove(); // Hapus pulse besar sebelum memulai animasi baru
-                      // Tambahkan kondisi untuk memastikan marker tidak kosong
-                      if (
-                        pulse &&
-                        marker &&
-                        !marker.empty() &&
-                        startPulseAnimation
-                      ) {
-                        createPulseYellow(); // Ulangi animasi pulse
-                      }
-                    });
-                }
-                // Mulai animasi pulse
-                createPulseYellow();
-
-                // Hapus marker dan pulse setelah durasi yang ditentukan
-                setTimeout(async () => {
-                  marker.remove();
-                  g.selectAll(".pulseYellow").remove(); // Pastikan semua pulse dihapus
-                  startPulseAnimation = false;
-                  await resetAllAffterTimeout();
-                }, timeDifferenceInSeconds * 1000); // Konversi ke milidetik
-
-                setTimeout(() => {
-                  marker.remove();
-                  g.selectAll(".pulseYellow").remove(); // Pastikan semua pulse dihapus
-                }, (timeDifferenceInSeconds + 1) * 1000); // Konversi ke milidetik
-              }
-            })
-            .catch((error) =>
-              console.error("Error fetching geolocation data:", error)
+          const getGeoLocation = (ip) =>
+            fetch(`https://ipinfo.io/${ip}/geo?token=3949280a8aa576`).then(
+              (response) => response.json()
             );
+          const getArrayGeolocation = (ips) => {
+            // Membuat array promises dari hasil fetch
+            const promises = ips.map((ip) =>
+              fetch(`https://ipinfo.io/${ip}/geo?token=3949280a8aa576`).then(
+                (response) => response.json()
+              )
+            );
+            // Mengembalikan promise yang menyelesaikan dengan array hasil
+            return Promise.all(promises);
+          };
+
+          Promise.all([
+            getArrayGeolocation(sourceIP),
+            getGeoLocation(destinationIP),
+          ]).then((locations) => {
+            const [sourceData, destinationData] = locations;
+
+            let sourceCoords = [];
+            sourceData.forEach((el) => {
+              let [sourceLat, sourceLon] = el.loc.split(",");
+              let sourceCoord = projection([sourceLon, sourceLat]);
+              sourceCoords.push(sourceCoord);
+            });
+
+            const [destLat, destLon] = destinationData.loc.split(",");
+
+            const destCoords = projection([destLon, destLat]);
+
+            g.append("circle")
+              .attr("cx", destCoords[0])
+              .attr("cy", destCoords[1])
+              .attr("r", 5)
+              .attr("class", "marker")
+              .append("title")
+              .text(`${destinationData.city}, ${destinationData.country}`);
+
+            function createPulse(className) {
+              const pulse = g
+                .append("circle")
+                .attr("class", className)
+                .attr("cx", destCoords[0])
+                .attr("cy", destCoords[1])
+                .attr("r", 5)
+                .attr("opacity", 0.7);
+
+              pulse
+                .transition()
+                .duration(1500)
+                .ease(easeCubicInOut)
+                .attr("r", 15)
+                .attr("opacity", 0)
+                .on("end", () => {
+                  pulse.remove();
+                  if (startPulseAnimation && marker && !marker.empty()) {
+                    createPulse(className);
+                  }
+                });
+            }
+
+            let idx = 0;
+
+            function drawLine(className) {
+              const lineGenerator = d3
+                .line()
+                .x((d) => d[0])
+                .y((d) => d[1])
+                .curve(d3.curveBasis);
+
+              const points = [
+                [sourceCoords[idx][0], sourceCoords[idx][1]],
+                [
+                  (sourceCoords[idx][0] + destCoords[0]) / 2,
+                  sourceCoords[idx][1] - 100, // Adjust height for the curve
+                ],
+                [destCoords[0], destCoords[1]],
+              ];
+              let path;
+              if (className == "lineRed") {
+                path = g
+                  .append("path")
+                  .attr("d", lineGenerator(points))
+                  .attr("class", "lineRed");
+              } else {
+                // .lineYellow
+                path = g
+                  .append("path")
+                  .attr("d", lineGenerator(points))
+                  .attr("class", "lineYellow");
+              }
+
+              const totalLength = path.node().getTotalLength();
+
+              path
+                .attr("stroke-dasharray", totalLength + " " + totalLength)
+                .attr("stroke-dashoffset", totalLength)
+                .transition()
+                .duration(2000)
+                .ease(d3.easeCubicInOut)
+                .attr("stroke-dashoffset", 0)
+                .remove()
+                .on("end", () => {
+                  if (startPulseAnimation && marker && !marker.empty()) {
+                    idx++;
+                    if (idx >= sourceCoords.length) {
+                      // reset idx
+                      idx = 0;
+                    }
+                    drawLine(className);
+                  }
+                });
+            }
+
+            function createMarker(className) {
+              marker = g
+                .append("circle")
+                .attr("class", className)
+                .attr("cx", destCoords[0])
+                .attr("cy", destCoords[1])
+                .attr("r", 5)
+                .on("mouseover", (event) => showTooltip(event, el))
+                .on("mouseout", hideTooltip);
+
+              startPulseAnimation = true;
+              createPulse(
+                className === "markerRed" ? "pulseRed" : "pulseYellow"
+              );
+              drawLine(className === "markerRed" ? "lineRed" : "lineYellow");
+            }
+
+            if (currentTime >= startTime && currentTime <= endTime) {
+              console.log("mamang");
+              createMarker(
+                el.Severity.includes("red /") ? "markerRed" : "markerYellow"
+              );
+
+              // stop menggunakan timeout
+              setTimeout(async () => {
+                marker.remove();
+                g.selectAll(".pulseRed, .pulseYellow").remove();
+                startPulseAnimation = false;
+                await resetAllAffterTimeout();
+              }, timeDifferenceInSeconds * 1000); // Konversi ke milidetik
+
+              setTimeout(() => {
+                marker.remove();
+                g.selectAll(".pulseRed, .pulseYellow").remove();
+              }, (timeDifferenceInSeconds + 1) * 1000);
+            }
+          });
+          //   const ipAddress = el.VictimIp;
+          //   let marker, startPulseAnimation;
+          //   fetch(`https://ipinfo.io/${ipAddress}/geo?token=${ipInfoToken}`)
+          //     .then((response) => response.json())
+          //     .then((data) => {
+          //       const [lat, lon] = data.loc.split(",");
+          //       const coords = projection([lon, lat]);
+          //       function createPulse(className) {
+          //         const pulse = g
+          //           .append("circle")
+          //           .attr("class", className)
+          //           .attr("cx", coords[0])
+          //           .attr("cy", coords[1])
+          //           .attr("r", 5)
+          //           .attr("opacity", 0.7);
+          //         pulse
+          //           .transition()
+          //           .duration(1500)
+          //           .ease(easeCubicInOut)
+          //           .attr("r", 15)
+          //           .attr("opacity", 0)
+          //           .on("end", () => {
+          //             pulse.remove();
+          //             if (startPulseAnimation && marker && !marker.empty()) {
+          //               createPulse(className);
+          //             }
+          //           });
+          //       }
+          //       function createMarker(className) {
+          //         marker = g
+          //           .append("circle")
+          //           .attr("class", className)
+          //           .attr("cx", coords[0])
+          //           .attr("cy", coords[1])
+          //           .attr("r", 5)
+          //           .on("mouseover", (event) => showTooltip(event, el))
+          //           .on("mouseout", hideTooltip);
+          //         startPulseAnimation = true;
+          //         createPulse(
+          //           className === "markerRed" ? "pulseRed" : "pulseYellow"
+          //         );
+          //       }
+          //       if (el.Status === "On-going") {
+          //         createMarker(
+          //           el.Severity.includes("red /") ? "markerRed" : "markerYellow"
+          //         );
+          //       }
+          //       // Listener untuk memantau perubahan status
+          //       onSnapshot(doc(db, "DDoSAttack", el.id), (docSnapshot) => {
+          //         const updatedData = docSnapshot.data();
+          //         if (updatedData.Status === "Recovered") {
+          //           marker.remove();
+          //           g.selectAll(".pulseRed, .pulseYellow").remove();
+          //           startPulseAnimation = false;
+          //         }
+          //       });
+          //     })
+          //     .catch((error) =>
+          //       console.error("Error fetching geolocation data:", error)
+          //     );
         }
       }
 
@@ -444,38 +586,40 @@
       async function resetAllAffterTimeout() {
         const currentTime = dayjs().utcOffset(7).toDate();
         const ddosAttack = await getAllDDoSAttacks();
-        countOnGoing = 0;
-        countRedSeverity = 0;
-        countYellowSeverity = 0;
+        const onGoingCountBefore =
+          onGoingRedAttack.length + onGoingYellowAttack.length;
+        const onGoingRedCountBefore = onGoingRedAttack.length;
+        const onGoingYellowCountBefore = onGoingYellowAttack.length;
         ddosAttack.forEach((el) => {
           // hapus dari todo list record yang tidak on going dan memiliki EndTime yang lebih besar dari currentTime
           updateTodoList(el);
-          if (
-            el.Status === "On-going" ||
-            (el.EndTime && timestampToDate(el.EndTime) > currentTime)
-          ) {
-            console.log("halo");
-            if (el.Severity.includes("red /")) {
-              countRedSeverity++;
-            } else {
-              // yellow severity
-              countYellowSeverity++;
-            }
-            countOnGoing++;
-          }
+          // benerin lagi array onGoingAttack nya
+          addOnGoingAttack(el);
+          removeOnGoingAttack(el);
         });
-        animateCountUpdate(
-          document.getElementById("ongoing-attack-count"),
-          countOnGoing
-        );
-        animateCountUpdate(
-          document.getElementById("ongoing-attack-count-red"),
-          countRedSeverity
-        );
-        animateCountUpdate(
-          document.getElementById("ongoing-attack-count-yellow"),
-          countYellowSeverity
-        );
+        if (
+          !(
+            onGoingRedAttack.length + onGoingYellowAttack.length ==
+            onGoingCountBefore
+          )
+        ) {
+          animateCountUpdate(
+            document.getElementById("ongoing-attack-count"),
+            onGoingRedAttack.length + onGoingYellowAttack.length
+          );
+        }
+        if (!(onGoingRedAttack.length == onGoingRedCountBefore)) {
+          animateCountUpdate(
+            document.getElementById("ongoing-attack-count-red"),
+            onGoingRedAttack.length
+          );
+        }
+        if (!(onGoingYellowAttack.length == onGoingYellowCountBefore)) {
+          animateCountUpdate(
+            document.getElementById("ongoing-attack-count-yellow"),
+            onGoingYellowAttack.length
+          );
+        }
       }
 
       function renderMarkerByStatus(el) {
@@ -748,8 +892,7 @@
           },
         });
       }
-
-      let countOnGoing = 0;
+      let countOnGoing = [];
       // Fungsi untuk menghitung dan memperbarui jumlah On-going Attack
       function updateOngoingAttackCount() {
         const currentTime = dayjs().utcOffset(7).toDate();
@@ -761,32 +904,44 @@
         onSnapshot(ddosAttackCollection, (snapshot) => {
           snapshot.docChanges().forEach((change) => {
             const data = { id: change.doc.id, ...change.doc.data() };
+            console.log(countOnGoing);
+            console.log(data);
 
             if (
-              data.Status === "On-going" ||
-              (data.EndTime && timestampToDate(data.EndTime) > currentTime)
+              (data.Status === "On-going" ||
+                (data.EndTime &&
+                  timestampToDate(data.EndTime) > currentTime)) &&
+              !countOnGoing.includes(data.id)
             ) {
-              countOnGoing++;
               // Perbarui nilai pada elemen <h3>
               animateCountUpdate(
                 document.getElementById("ongoing-attack-count"),
-                countOnGoing
+                onGoingRedAttack.length + onGoingYellowAttack.length
               );
+              countOnGoing.push(data.id);
+              console.log("halo");
             } else {
-              if (change.type == "modified" || change.type == "removed") {
-                countOnGoing--;
+              if (
+                !(
+                  data.Status === "On-going" ||
+                  (data.EndTime && timestampToDate(data.EndTime) > currentTime)
+                ) &&
+                countOnGoing.includes(data.id)
+              ) {
                 // Perbarui nilai pada elemen <h3>
                 animateCountUpdate(
                   document.getElementById("ongoing-attack-count"),
-                  countOnGoing
+                  onGoingRedAttack.length + onGoingYellowAttack.length
                 );
+                countOnGoing = countOnGoing.filter((item) => item !== data.id);
               }
             }
+            console.log({ last: countOnGoing });
           });
         });
       }
 
-      let countRedSeverity = 0;
+      let countRedSeverity = [];
       function updateRedSeverityOngoingAttackCount() {
         const currentTime = dayjs().utcOffset(7).toDate();
 
@@ -802,31 +957,38 @@
               (data.Status === "On-going" ||
                 (data.EndTime &&
                   timestampToDate(data.EndTime) > currentTime)) &&
-              data.Severity.includes("red /")
+              data.Severity.includes("red /") &&
+              !countRedSeverity.includes(data.id)
             ) {
-              countRedSeverity++;
               // Perbarui nilai pada elemen <h3>
               animateCountUpdate(
                 document.getElementById("ongoing-attack-count-red"),
-                countRedSeverity
+                onGoingRedAttack.length
               );
+              countRedSeverity.push(data.id);
             } else {
               if (
-                (change.type == "modified" || change.type == "removed") &&
-                data.Severity.includes("red /")
+                !(
+                  data.Status === "On-going" ||
+                  (data.EndTime && timestampToDate(data.EndTime) > currentTime)
+                ) &&
+                data.Severity.includes("red /") &&
+                countRedSeverity.includes(data.id)
               ) {
-                countRedSeverity--;
                 // Perbarui nilai pada elemen <h3>
                 animateCountUpdate(
                   document.getElementById("ongoing-attack-count-red"),
-                  countRedSeverity
+                  onGoingRedAttack.length
+                );
+                countRedSeverity = countRedSeverity.filter(
+                  (item) => item !== data.id
                 );
               }
             }
           });
         });
       }
-      let countYellowSeverity = 0;
+      let countYellowSeverity = [];
       function updateYellowSeverityOngoingAttackCount() {
         const currentTime = dayjs().utcOffset(7).toDate();
 
@@ -842,24 +1004,31 @@
               (data.Status === "On-going" ||
                 (data.EndTime &&
                   timestampToDate(data.EndTime) > currentTime)) &&
-              data.Severity.includes("yellow /")
+              data.Severity.includes("yellow /") &&
+              !countYellowSeverity.includes(data.id)
             ) {
-              countYellowSeverity++;
               // Perbarui nilai pada elemen <h3>
               animateCountUpdate(
                 document.getElementById("ongoing-attack-count-yellow"),
-                countYellowSeverity
+                onGoingYellowAttack.length
               );
+              countYellowSeverity.push(data.id);
             } else {
               if (
-                (change.type == "modified" || change.type == "removed") &&
-                data.Severity.includes("yellow /")
+                !(
+                  data.Status === "On-going" ||
+                  (data.EndTime && timestampToDate(data.EndTime) > currentTime)
+                ) &&
+                data.Severity.includes("yellow /") &&
+                countYellowSeverity.includes(data.id)
               ) {
-                countYellowSeverity--;
                 // Perbarui nilai pada elemen <h3>
                 animateCountUpdate(
                   document.getElementById("ongoing-attack-count-yellow"),
-                  countYellowSeverity
+                  onGoingYellowAttack.length
+                );
+                countYellowSeverity = countYellowSeverity.filter(
+                  (element) => element !== data.id
                 );
               }
             }
@@ -938,30 +1107,64 @@
             if (change.type === "added") {
               const newAttackData = { id: change.doc.id, ...change.doc.data() };
               updateTodoList(newAttackData);
-              if (newAttackData.Status === "On-going") {
+              if (
+                newAttackData.Status === "On-going" &&
+                !(
+                  onGoingRedAttack.includes(newAttackData.id) ||
+                  onGoingYellowAttack.includes(newAttackData.id)
+                )
+              ) {
                 renderMarkerByStatus(newAttackData);
               } else {
-                renderMarkerByEndTime(newAttackData);
+                if (
+                  !(
+                    onGoingRedAttack.includes(newAttackData.id) ||
+                    onGoingYellowAttack.includes(newAttackData.id)
+                  )
+                ) {
+                  renderMarkerByEndTime(newAttackData);
+                }
               }
+              addOnGoingAttack(newAttackData);
             }
             // Anda juga dapat menangani perubahan tipe 'modified' atau 'removed' jika diperlukan
             if (change.type === "modified") {
               const newAttackData = { id: change.doc.id, ...change.doc.data() };
               updateTodoList(newAttackData);
-              if (newAttackData.Status === "On-going") {
+              if (
+                newAttackData.Status === "On-going" &&
+                !(
+                  onGoingRedAttack.includes(newAttackData.id) ||
+                  onGoingYellowAttack.includes(newAttackData.id)
+                )
+              ) {
                 renderMarkerByStatus(newAttackData);
               } else {
-                renderMarkerByEndTime(newAttackData);
+                if (
+                  !(
+                    onGoingRedAttack.includes(newAttackData.id) ||
+                    onGoingYellowAttack.includes(newAttackData.id)
+                  )
+                ) {
+                  renderMarkerByEndTime(newAttackData);
+                }
               }
+              addOnGoingAttack(newAttackData);
+              removeOnGoingAttack(newAttackData);
               console.log("Modified data: ", change.doc.data());
             }
             if (change.type === "removed") {
+              const removedAttackdata = {
+                id: change.doc.id,
+                ...change.doc.data(),
+              };
               console.log("Removed data: ", change.doc.data());
               const removedItem = itemMap.get(change.doc.id);
               if (removedItem) {
                 todoList.removeChild(removedItem);
                 itemMap.delete(change.doc.id);
               }
+              removeOnGoingAttack(removedAttackdata);
             }
           });
         });
