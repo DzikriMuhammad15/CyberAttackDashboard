@@ -149,7 +149,7 @@
       <div class="table-data">
         <div class="todo">
           <div class="head">
-            <h3>On-going Attack</h3>
+            <h3>Top Targeted IP</h3>
           </div>
           <ul class="todo-list"></ul>
         </div>
@@ -1036,48 +1036,71 @@
         });
       }
 
-      function updateTodoList(record) {
-        const id = record.id;
-        const severity = record.Severity;
-        const status = record.Status;
-        let listItem = itemMap.get(id);
-        const currentTime = dayjs().utcOffset(7).toDate();
+      function isIdInTopAttack(topAttack, id) {
+        return topAttack.some((attack) => attack.id === id);
+      }
+      function updateTodoList(topAttack) {
+        const idsInTopAttack = new Set(topAttack.map((attack) => attack.id));
+        const existingItems = Array.from(todoList.children);
+        const itemMap = new Map();
 
-        if (
-          (severity.includes("yellow /") && status === "On-going") ||
-          (record.EndTime && timestampToDate(record.EndTime) > currentTime)
-        ) {
+        // Buat peta ID ke elemen list
+        existingItems.forEach((item) => {
+          const id = item.dataset.id;
+          if (id) {
+            itemMap.set(id, item);
+          }
+        });
+
+        // Tambahkan atau perbarui item dalam daftar
+        topAttack.forEach((record) => {
+          let listItem = itemMap.get(record.id);
+
           if (!listItem) {
             listItem = document.createElement("li");
+            listItem.dataset.id = record.id; // Set ID di data attribute
+            listItem.addEventListener("click", () => showModal(record));
+          }
+
+          // Set class dan innerHTML sesuai dengan severity
+          if (record.Severity.includes("yellow /")) {
             listItem.className = "completed";
-            listItem.innerHTML = `
-          <p>${record.ID}</p>
-          <i class="bx bx-dots-vertical-rounded"></i>
-        `;
-            listItem.addEventListener("click", () => showModal(record));
-            todoList.appendChild(listItem);
-            itemMap.set(id, listItem);
-          }
-        } else if (
-          (severity.includes("red /") && status === "On-going") ||
-          (record.EndTime && timestampToDate(record.EndTime) > currentTime)
-        ) {
-          if (!listItem) {
-            listItem = document.createElement("li");
+          } else if (record.Severity.includes("red /")) {
             listItem.className = "not-completed";
-            listItem.innerHTML = `
-          <p>${record.ID}</p>
-          <i class="bx bx-dots-vertical-rounded"></i>
-        `;
-            listItem.addEventListener("click", () => showModal(record));
-            todoList.appendChild(listItem);
-            itemMap.set(id, listItem);
           }
-        } else if (listItem) {
-          // Hapus item dari daftar jika tidak memenuhi kriteria
-          todoList.removeChild(listItem);
-          itemMap.delete(id);
-        }
+
+          listItem.innerHTML = `<p>${record.ID}</p><i class="bx bx-dots-vertical-rounded"></i>`;
+
+          if (!listItem.parentNode) {
+            todoList.appendChild(listItem);
+          }
+
+          // Update itemMap
+          itemMap.set(record.id, listItem);
+        });
+
+        // Hapus item yang tidak lagi ada di topAttack
+        existingItems.forEach((item) => {
+          const id = item.dataset.id;
+          if (!idsInTopAttack.has(id)) {
+            todoList.removeChild(item);
+            itemMap.delete(id);
+          }
+        });
+
+        // Urutkan item dalam daftar sesuai dengan topAttack
+        Array.from(todoList.children)
+          .sort((a, b) => {
+            const idA = a.dataset.id;
+            const idB = b.dataset.id;
+            const attackA = topAttack.find((attack) => attack.id === idA);
+            const attackB = topAttack.find((attack) => attack.id === idB);
+
+            return attackB.AverageBandwidth - attackA.AverageBandwidth;
+          })
+          .forEach((item) => {
+            todoList.appendChild(item); // Menempatkan item di urutan yang benar
+          });
       }
 
       const todoList = document.querySelector(".todo-list");
@@ -1097,16 +1120,114 @@
         new bootstrap.Modal(document.getElementById("recordModal")).show();
       }
 
+      function formatData(data) {
+        let avgBandwidth = data.Severity.split(" / ")[1];
+        let avgBandwidthArr = avgBandwidth.split(" ");
+        let avgBandwidthKiri = avgBandwidthArr[0];
+        let avgBandwidthKanan = avgBandwidthArr[1];
+        let pengali = 1;
+        if (avgBandwidthKiri.includes("bps")) {
+          avgBandwidthKiri = avgBandwidthKiri.replace("bps", "");
+
+          if (avgBandwidthKiri.includes("G")) {
+            pengali = 1000000;
+            avgBandwidthKiri = avgBandwidthKiri.replace("G", "");
+            avgBandwidthKiri = parseFloat(avgBandwidthKiri);
+          } else if (avgBandwidthKiri.includes("K")) {
+            pengali = 1000;
+            avgBandwidthKiri = avgBandwidthKiri.replace("K", "");
+            avgBandwidthKiri = parseFloat(avgBandwidthKiri);
+          } else {
+            avgBandwidthKiri = parseFloat(avgBandwidthKiri);
+          }
+          return { ...data, AverageBandwidth: avgBandwidthKiri * pengali };
+        } else {
+          avgBandwidthKanan = avgBandwidthKanan.replace("bps", "");
+          avgBandwidthKanan = avgBandwidthKanan.replace("(", "");
+          avgBandwidthKanan = avgBandwidthKanan.replace(")", "");
+
+          if (avgBandwidthKanan.includes("G")) {
+            pengali = 1000000;
+            avgBandwidthKanan = avgBandwidthKanan.replace("G", "");
+            avgBandwidthKanan = parseFloat(avgBandwidthKanan);
+          } else if (avgBandwidthKanan.includes("K")) {
+            pengali = 1000;
+            avgBandwidthKanan = avgBandwidthKanan.replace("K", "");
+            avgBandwidthKanan = parseFloat(avgBandwidthKanan);
+          } else {
+            avgBandwidthKanan = parseFloat(avgBandwidthKanan);
+          }
+          return { ...data, AverageBandwidth: avgBandwidthKanan * pengali };
+        }
+      }
+
+      function updateTopAttack(topAttack, newAttack) {
+        // Ambil currentTime dalam Waktu Indonesia Barat (WIB)
+        const currentTimeWIB = new Date(
+          new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" })
+        );
+        const currentDay = currentTimeWIB.getDate();
+        const currentMonth = currentTimeWIB.getMonth();
+        const currentYear = currentTimeWIB.getFullYear();
+
+        // Cek apakah newAttack sudah ada di dalam topAttack berdasarkan id
+        const attackExists = topAttack.some(
+          (attack) => attack.id === newAttack.id
+        );
+
+        // Jika object tidak ada dalam topAttack
+        if (!attackExists) {
+          // Konversi StartTime dari Firebase timestamp menjadi objek Date
+          const startTimeInMillis =
+            newAttack.StartTime.seconds * 1000 +
+            newAttack.StartTime.nanoseconds / 1000000;
+          const startTime = new Date(startTimeInMillis);
+
+          // Cek apakah StartTime berada pada hari yang sama dengan currentTime (WIB)
+          const isSameDay =
+            startTime.getDate() === currentDay &&
+            startTime.getMonth() === currentMonth &&
+            startTime.getFullYear() === currentYear;
+
+          if (isSameDay) {
+            // Masukkan object ke dalam array pada posisi yang sesuai
+            let inserted = false;
+            for (let i = 0; i < topAttack.length; i++) {
+              if (newAttack.AverageBandwidth > topAttack[i].AverageBandwidth) {
+                topAttack.splice(i, 0, newAttack);
+                inserted = true;
+                break;
+              }
+            }
+
+            // Jika tidak ada object yang lebih besar, push ke akhir array
+            if (!inserted) {
+              topAttack.push(newAttack);
+            }
+
+            // Batasi topAttack menjadi hanya 10 object terbesar
+            if (topAttack.length > 10) {
+              topAttack.pop();
+            }
+          }
+        }
+
+        return topAttack;
+      }
+
+      let topAttack = [];
       // Fungsi untuk memulai listener untuk perubahan data secara real-time
       function listenToDDoSAttacks() {
         const ddosAttackCollection = collection(db, "DDoSAttack");
-
         // Memulai listener untuk memantau perubahan
         onSnapshot(ddosAttackCollection, (snapshot) => {
           snapshot.docChanges().forEach((change) => {
             if (change.type === "added") {
               const newAttackData = { id: change.doc.id, ...change.doc.data() };
-              updateTodoList(newAttackData);
+              const formatedData = formatData(newAttackData);
+              topAttack = updateTopAttack(topAttack, formatedData);
+              console.log(topAttack);
+              updateTodoList(topAttack);
               if (
                 newAttackData.Status === "On-going" &&
                 !(
@@ -1127,10 +1248,11 @@
               }
               addOnGoingAttack(newAttackData);
             }
-            // Anda juga dapat menangani perubahan tipe 'modified' atau 'removed' jika diperlukan
             if (change.type === "modified") {
               const newAttackData = { id: change.doc.id, ...change.doc.data() };
-              updateTodoList(newAttackData);
+              const formatedData = formatData(newAttackData);
+              topAttack = updateTopAttack(topAttack, formatedData);
+              updateTodoList(topAttack);
               if (
                 newAttackData.Status === "On-going" &&
                 !(
@@ -1158,6 +1280,9 @@
                 id: change.doc.id,
                 ...change.doc.data(),
               };
+              const formatedData = formatData(removedAttackdata);
+              topAttack = updateTopAttack(topAttack, formatedData);
+              updateTodoList(topAttack);
               console.log("Removed data: ", change.doc.data());
               const removedItem = itemMap.get(change.doc.id);
               if (removedItem) {
