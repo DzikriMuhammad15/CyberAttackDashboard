@@ -284,7 +284,7 @@
         const currentTime = dayjs().utcOffset(7).toDate();
         // cek apakah dia memenuhi syarat on-gooing
         if (
-          data.Status === "On-going" ||
+          data.Status === "Ongoing" ||
           (data.EndTime && timestampToDate(data.EndTime) > currentTime)
         ) {
           // jika memenuhi, cek apakah dia merupakan red severity
@@ -305,10 +305,10 @@
 
       function removeOnGoingAttack(data) {
         const currentTime = dayjs().utcOffset(7).toDate();
-        // cek apakah data memenuhi syarat on-going
+        // cek apakah data memenuhi syarat Ongoing
         if (
           !(
-            data.Status === "On-going" ||
+            data.Status === "Ongoing" ||
             (data.EndTime && timestampToDate(data.EndTime) > currentTime)
           )
         ) {
@@ -341,7 +341,12 @@
       function renderMarkerByEndTime(el) {
         const currentTime = dayjs().utcOffset(7).toDate();
         const startTime = timestampToDate(el.StartTime);
-        const endTime = timestampToDate(el.EndTime);
+        let endTime;
+        if (el.endTime == null) {
+          endTime = startTime;
+        } else {
+          endTime = timestampToDate(el.EndTime);
+        }
         const attackId = el.id; // ID serangan untuk mengidentifikasi elemen
         console.log({ currentTime: currentTime, startTime, endTime });
         var startPulseAnimation = false;
@@ -494,12 +499,12 @@
                 await resetAllAffterTimeout();
 
                 // Hapus dari countOnGoing, CountRedSeverity, dan countYellowSeverity agar count-nya tetap benar
-                if (countOnGoing.includes(el.id) && el.Status != "On-going") {
+                if (countOnGoing.includes(el.id) && el.Status != "Ongoing") {
                   countOnGoing = countOnGoing.filter((item) => item !== el.id);
                 }
                 if (
                   countRedSeverity.includes(el.id) &&
-                  el.Status != "On-going"
+                  el.Status != "Ongoing"
                 ) {
                   countRedSeverity = countRedSeverity.filter(
                     (item) => item !== el.id
@@ -507,7 +512,7 @@
                 }
                 if (
                   countYellowSeverity.includes(el.id) &&
-                  el.Status != "On-going"
+                  el.Status != "Ongoing"
                 ) {
                   countYellowSeverity = countYellowSeverity.filter(
                     (item) => item !== el.id
@@ -699,7 +704,7 @@
             drawLine(className === "markerRed" ? "lineRed" : "lineYellow");
           }
 
-          if (el.Status === "On-going") {
+          if (el.Status === "Ongoing") {
             createMarker(
               el.Severity.includes("red /") ? "markerRed" : "markerYellow"
             );
@@ -708,7 +713,7 @@
           // Listener untuk memantau perubahan status
           onSnapshot(doc(db, "DDoSAttack", attackId), (docSnapshot) => {
             const updatedData = docSnapshot.data();
-            if (updatedData.Status !== "On-going") {
+            if (updatedData.Status !== "Ongoing") {
               // Menghapus elemen terkait dengan ID khusus
               g.selectAll(
                 `.marker-${attackId}, .pulse-${attackId}, .line-${attackId}`
@@ -778,12 +783,12 @@
         });
       }
       let countOnGoing = [];
-      // Fungsi untuk menghitung dan memperbarui jumlah On-going Attack
+      // Fungsi untuk menghitung dan memperbarui jumlah Ongoing Attack
       function updateOngoingAttackCount() {
         // Ambil koleksi DDoSAttack dari Firestore
         const ddosAttackCollection = collection(db, "DDoSAttack");
 
-        // Hitung jumlah record "On-going"
+        // Hitung jumlah record "Ongoing"
         onSnapshot(ddosAttackCollection, (snapshot) => {
           snapshot.docChanges().forEach((change) => {
             const currentTime = dayjs().utcOffset(7).toDate();
@@ -791,7 +796,7 @@
             console.log({ countOnGoing });
 
             if (
-              (data.Status === "On-going" ||
+              (data.Status === "Ongoing" ||
                 (data.EndTime &&
                   timestampToDate(data.EndTime) > currentTime)) &&
               !countOnGoing.includes(data.id)
@@ -806,7 +811,7 @@
             } else {
               if (
                 !(
-                  data.Status === "On-going" ||
+                  data.Status === "Ongoing" ||
                   (data.EndTime && timestampToDate(data.EndTime) > currentTime)
                 ) &&
                 countOnGoing.includes(data.id)
@@ -829,14 +834,14 @@
         // Ambil koleksi DDoSAttack dari Firestore
         const ddosAttackCollection = collection(db, "DDoSAttack");
 
-        // Hitung jumlah record "On-going"
+        // Hitung jumlah record "Ongoing"
         onSnapshot(ddosAttackCollection, (snapshot) => {
           snapshot.docChanges().forEach((change) => {
             const currentTime = dayjs().utcOffset(7).toDate();
             const data = { id: change.doc.id, ...change.doc.data() };
 
             if (
-              (data.Status === "On-going" ||
+              (data.Status === "Ongoing" ||
                 (data.EndTime &&
                   timestampToDate(data.EndTime) > currentTime)) &&
               data.Severity.includes("red /") &&
@@ -851,7 +856,7 @@
             } else {
               if (
                 !(
-                  data.Status === "On-going" ||
+                  data.Status === "Ongoing" ||
                   (data.EndTime && timestampToDate(data.EndTime) > currentTime)
                 ) &&
                 data.Severity.includes("red /") &&
@@ -875,14 +880,14 @@
         // Ambil koleksi DDoSAttack dari Firestore
         const ddosAttackCollection = collection(db, "DDoSAttack");
 
-        // Hitung jumlah record "On-going"
+        // Hitung jumlah record "Ongoing"
         onSnapshot(ddosAttackCollection, (snapshot) => {
           snapshot.docChanges().forEach((change) => {
             const currentTime = dayjs().utcOffset(7).toDate();
             const data = { id: change.doc.id, ...change.doc.data() };
 
             if (
-              (data.Status === "On-going" ||
+              (data.Status === "Ongoing" ||
                 (data.EndTime &&
                   timestampToDate(data.EndTime) > currentTime)) &&
               data.Severity.includes("yellow /") &&
@@ -897,7 +902,7 @@
             } else {
               if (
                 !(
-                  data.Status === "On-going" ||
+                  data.Status === "Ongoing" ||
                   (data.EndTime && timestampToDate(data.EndTime) > currentTime)
                 ) &&
                 data.Severity.includes("yellow /") &&
@@ -1155,7 +1160,7 @@
               console.log(topAttack);
               updateTodoList(topAttack);
               if (
-                newAttackData.Status === "On-going" &&
+                newAttackData.Status === "Ongoing" &&
                 !(
                   onGoingRedAttack.includes(newAttackData.id) ||
                   onGoingYellowAttack.includes(newAttackData.id)
@@ -1181,7 +1186,7 @@
               console.log({ onGoingRedAttack, onGoingYellowAttack });
               updateTodoList(topAttack);
               if (
-                newAttackData.Status === "On-going" &&
+                newAttackData.Status === "Ongoing" &&
                 !(
                   onGoingRedAttack.includes(newAttackData.id) ||
                   onGoingYellowAttack.includes(newAttackData.id)
