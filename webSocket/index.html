@@ -17,7 +17,7 @@
       };
 
       ws.onmessage = (event) => {
-        console.log(event.data);
+        console.log(JSON.parse(event.data));
       };
 
       ws.onclose = () => {

@@ -261,337 +261,97 @@
       import anime from "https://cdn.jsdelivr.net/npm/animejs@3.2.1/+esm";
 
       dayjs.extend(utc);
+      const ws = new WebSocket("ws:/localhost:8080");
 
-      const firebaseConfig = {
-        // YOUR FIREBASE CONFIG
-      };
-      const ipInfoToken = "YOUR IP INFO TOKEN";
+      let onGoingAttack = [];
 
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
-
-      let onGoingYellowAttack = [];
-      let onGoingRedAttack = [];
-
-      function addOnGoingAttack(data) {
-        const currentTime = dayjs().utcOffset(7).toDate();
-        // cek apakah dia memenuhi syarat on-gooing
-        if (
-          data.Status === "Ongoing" ||
-          (data.EndTime && timestampToDate(data.EndTime) > currentTime)
-        ) {
-          // jika memenuhi, cek apakah dia merupakan red severity
-          if (data.Severity.includes("red /")) {
-            // jika iya, cek apakah id nya ada di onGoingRedAttack
-            if (!onGoingRedAttack.includes(data.id)) {
-              // jika tidak ada, push ke array onGoingRedAttack
-              onGoingRedAttack.push(data.id);
-            }
-          } else {
-            //  lakukan hal yang sama pada yellow attack
-            if (!onGoingYellowAttack.includes(data.id)) {
-              onGoingYellowAttack.push(data.id);
-            }
-          }
-        }
+      function transformData(data) {
+        let returnVal = {
+          Status: "Ongoing",
+          ...data,
+        };
+        return returnVal;
       }
 
-      function removeOnGoingAttack(data) {
-        const currentTime = dayjs().utcOffset(7).toDate();
-        // cek apakah data memenuhi syarat Ongoing
-        if (
-          !(
-            data.Status === "Ongoing" ||
-            (data.EndTime && timestampToDate(data.EndTime) > currentTime)
-          )
-        ) {
-          // jika tidak memenuhi, cek apakah dia merupakan red severity
-          if (data.Severity.includes("red /")) {
-            // jika merupakan red severity, cek apakah dia ada di dalam onGoingRedAttack
-            if (onGoingRedAttack.includes(data.id)) {
-              // jika ada, filter array sehingga tidak ada nilai tersebut (hapus id data tersebut dari onGoingRedAttack)
-              onGoingRedAttack = onGoingRedAttack.filter(
-                (item) => item !== data.id
-              );
-            }
-          } else {
-            // lakukan hal yang sama pada yellow severity attack
-            if (onGoingYellowAttack.includes(data.id)) {
-              onGoingYellowAttack = onGoingYellowAttack.filter(
-                (item) => item !== data.id
-              );
-            }
-          }
-        }
-      }
-
-      // Fungsi untuk mengonversi Timestamp ke Date
-      function timestampToDate(timestamp) {
-        return timestamp.toDate();
-      }
-
-      // Fungsi untuk merender marker
-      function renderMarkerByEndTime(el) {
-        const currentTime = dayjs().utcOffset(7).toDate();
-        const startTime = timestampToDate(el.StartTime);
-        let endTime;
-        if (el.endTime == null) {
-          endTime = startTime;
-        } else {
-          endTime = timestampToDate(el.EndTime);
-        }
-        const attackId = el.id; // ID serangan untuk mengidentifikasi elemen
-        var startPulseAnimation = false;
-
-        let timeDifferenceInSeconds = 0;
-        if (currentTime >= startTime && currentTime <= endTime) {
-          timeDifferenceInSeconds = (endTime - currentTime) / 1000;
-        }
-        if (timeDifferenceInSeconds > 0) {
-          const destinationIP = el.VictimIp;
-          let marker;
-
-          const getGeoLocation = (ip) =>
-            fetch(`https://ipinfo.io/${ip}/geo?token=${ipInfoToken}`).then(
-              (response) => response.json()
-            );
-
-          Promise.all([getGeoLocation(destinationIP)]).then((locations) => {
-            const [destinationData] = locations;
-            const [destLat, destLon] = destinationData.loc.split(",");
-            const destCoords = projection([destLon, destLat]);
-
-            g.append("circle")
-              .attr("cx", destCoords[0])
-              .attr("cy", destCoords[1])
-              .attr("r", 5)
-              .attr("class", `marker marker-${attackId}`) // Kelas unik berdasarkan ID serangan
-              .append("title")
-              .text(`${destinationData.city}, ${destinationData.country}`);
-
-            function createPulse(className) {
-              const pulse = g
-                .append("circle")
-                .attr("class", `${className} pulse-${attackId}`) // Kelas unik berdasarkan ID serangan
-                .attr("cx", destCoords[0])
-                .attr("cy", destCoords[1])
-                .attr("r", 5)
-                .attr("opacity", 0.7);
-
-              let radiusEnd = className === "pulseRed" ? 25 : 15;
-
-              pulse
-                .transition()
-                .duration(1500)
-                .ease(d3.easeCubicInOut)
-                .attr("r", radiusEnd)
-                .attr("opacity", 0)
-                .on("end", () => {
-                  pulse.remove();
-                  if (startPulseAnimation && marker && !marker.empty()) {
-                    createPulse(className);
-                  }
-                });
-            }
-
-            let idx = 0;
-
-            function createMarker(className) {
-              marker = g
-                .append("circle")
-                .attr("class", `${className} marker-${attackId}`) // Kelas unik berdasarkan ID serangan
-                .attr("cx", destCoords[0])
-                .attr("cy", destCoords[1])
-                .attr("r", 5)
-                .on("mouseover", (event) => showTooltip(event, el))
-                .on("mouseout", hideTooltip);
-
-              startPulseAnimation = true;
-              createPulse(
-                className === "markerRed" ? "pulseRed" : "pulseYellow"
-              );
-            }
-
-            if (currentTime >= startTime && currentTime <= endTime) {
-              createMarker(
-                el.Severity.includes("red /") ? "markerRed" : "markerYellow"
-              );
-
-              // Hapus elemen berdasarkan ID serangan setelah timeout
-              setTimeout(async () => {
-                g.selectAll(
-                  `.marker-${attackId}, .pulse-${attackId}, .line-${attackId}`
-                ).remove();
-                marker = null;
-                startPulseAnimation = false;
-                await resetAllAffterTimeout();
-
-                // Hapus dari countOnGoing, CountRedSeverity, dan countYellowSeverity agar count-nya tetap benar
-                if (countOnGoing.includes(el.id) && el.Status != "Ongoing") {
-                  countOnGoing = countOnGoing.filter((item) => item !== el.id);
-                }
-                if (
-                  countRedSeverity.includes(el.id) &&
-                  el.Status != "Ongoing"
-                ) {
-                  countRedSeverity = countRedSeverity.filter(
-                    (item) => item !== el.id
-                  );
-                }
-                if (
-                  countYellowSeverity.includes(el.id) &&
-                  el.Status != "Ongoing"
-                ) {
-                  countYellowSeverity = countYellowSeverity.filter(
-                    (item) => item !== el.id
-                  );
-                }
-              }, timeDifferenceInSeconds * 1000); // Konversi ke milidetik
-            }
-          });
-        }
-      }
-
-      async function getAllDDoSAttacks() {
-        try {
-          const ddosAttackCollection = collection(db, "DDosAttackIndonesia");
-          const querySnapshot = await getDocs(ddosAttackCollection);
-          const attackData = querySnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-
-          return attackData;
-        } catch (error) {
-          console.error("Error getting documents: ", error);
-        }
-      }
-
-      async function resetAllAffterTimeout() {
-        const currentTime = dayjs().utcOffset(7).toDate();
-        const ddosAttack = await getAllDDoSAttacks();
-        const onGoingCountBefore =
-          onGoingRedAttack.length + onGoingYellowAttack.length;
-        const onGoingRedCountBefore = onGoingRedAttack.length;
-        const onGoingYellowCountBefore = onGoingYellowAttack.length;
-        ddosAttack.forEach((el) => {
-          // benerin lagi array onGoingAttack nya
-          addOnGoingAttack(el);
-          removeOnGoingAttack(el);
-        });
-        if (
-          !(
-            onGoingRedAttack.length + onGoingYellowAttack.length ==
-            onGoingCountBefore
-          )
-        ) {
-          animateCountUpdate(
-            document.getElementById("ongoing-attack-count"),
-            onGoingRedAttack.length + onGoingYellowAttack.length
-          );
-        }
-        if (!(onGoingRedAttack.length == onGoingRedCountBefore)) {
-          animateCountUpdate(
-            document.getElementById("ongoing-attack-count-red"),
-            onGoingRedAttack.length
-          );
-        }
-        if (!(onGoingYellowAttack.length == onGoingYellowCountBefore)) {
-          animateCountUpdate(
-            document.getElementById("ongoing-attack-count-yellow"),
-            onGoingYellowAttack.length
-          );
-        }
+      function includeInArray(data, array) {
+        const newSourceIp = data.from.src;
+        const newDestIp = data.to.dst;
+        return array.some(
+          (item) => item.sourceIp == newSourceIp && item.destIp == newDestIp
+        );
       }
 
       function renderMarkerByStatus(el) {
-        const destinationIP = el.VictimIp;
-        const attackId = el.id;
+        const attackId = el.from.src + el.to.dst;
         let startPulseAnimation, marker;
 
-        const getGeoLocation = (ip) =>
-          fetch(`https://ipinfo.io/${ip}/geo?token=${ipInfoToken}`).then(
-            (response) => response.json()
-          );
+        const destLat = el.to.lat;
+        const destLon = el.to.lng;
+        const destCoords = projection([destLon, destLat]);
+        console.log({ destLat, destLon });
 
-        Promise.all([getGeoLocation(destinationIP)]).then((locations) => {
-          const [destinationData] = locations;
+        g.append("circle")
+          .attr("cx", destCoords[0])
+          .attr("cy", destCoords[1])
+          .attr("r", 5)
+          .attr("class", `marker marker-${attackId}`)
+          .append("title");
 
-          const [destLat, destLon] = destinationData.loc.split(",");
-          const destCoords = projection([destLon, destLat]);
-          console.log(destCoords);
-
-          g.append("circle")
+        function createPulse() {
+          const pulse = g
+            .append("circle")
+            .attr("class", `pulseRed pulse-${attackId}`)
             .attr("cx", destCoords[0])
             .attr("cy", destCoords[1])
             .attr("r", 5)
-            .attr("class", `marker marker-${attackId}`) // Menambahkan kelas khusus dengan ID
-            .append("title")
-            .text(`${destinationData.city}, ${destinationData.country}`);
+            .attr("opacity", 0.7);
 
-          function createPulse(className) {
-            const pulse = g
-              .append("circle")
-              .attr("class", `${className} pulse-${attackId}`) // Menambahkan kelas khusus dengan ID
-              .attr("cx", destCoords[0])
-              .attr("cy", destCoords[1])
-              .attr("r", 5)
-              .attr("opacity", 0.7);
-
-            let radiusEnd = className === "pulseRed" ? 25 : 15;
-
-            pulse
-              .transition()
-              .duration(1500)
-              .ease(d3.easeCubicInOut)
-              .attr("r", radiusEnd)
-              .attr("opacity", 0)
-              .on("end", () => {
-                pulse.remove();
-                if (startPulseAnimation && marker && !marker.empty()) {
-                  createPulse(className);
-                }
-              });
-          }
-
-          let idx = 0;
-
-          function createMarker(className) {
-            marker = g
-              .append("circle")
-              .attr("class", `${className} marker-${attackId}`) // Menambahkan kelas khusus dengan ID
-              .attr("cx", destCoords[0])
-              .attr("cy", destCoords[1])
-              .attr("r", 5)
-              .on("mouseover", (event) => showTooltip(event, el))
-              .on("mouseout", hideTooltip);
-
-            startPulseAnimation = true;
-            createPulse(className === "markerRed" ? "pulseRed" : "pulseYellow");
-          }
-
-          if (el.Status === "Ongoing") {
-            createMarker(
-              el.Severity.includes("red /") ? "markerRed" : "markerYellow"
-            );
-          }
-
-          // Listener untuk memantau perubahan status
-          onSnapshot(
-            doc(db, "DDosAttackIndonesia", attackId),
-            (docSnapshot) => {
-              const updatedData = docSnapshot.data();
-              if (updatedData.Status !== "Ongoing") {
-                // Menghapus elemen terkait dengan ID khusus
-                g.selectAll(
-                  `.marker-${attackId}, .pulse-${attackId}, .line-${attackId}`
-                ).remove();
-                marker = null;
-                startPulseAnimation = false;
+          pulse
+            .transition()
+            .duration(1500)
+            .ease(d3.easeCubicInOut)
+            .attr("r", 25)
+            .attr("opacity", 0)
+            .on("end", () => {
+              pulse.remove();
+              if (startPulseAnimation && marker && !marker.empty()) {
+                createPulse();
               }
-            }
-          );
-        });
+            });
+        }
+
+        let idx = 0;
+
+        function createMarker() {
+          marker = g
+            .append("circle")
+            .attr("class", `markerRed marker-${attackId}`) // Menambahkan kelas khusus dengan ID
+            .attr("cx", destCoords[0])
+            .attr("cy", destCoords[1])
+            .attr("r", 5)
+            .on("mouseover", (event) => showTooltip(event, el))
+            .on("mouseout", hideTooltip);
+
+          startPulseAnimation = true;
+          createPulse();
+        }
+
+        if (el.Status === "Ongoing") {
+          createMarker();
+        }
+
+        // // Listener untuk memantau perubahan status
+        // onSnapshot(doc(db, "DDosAttackIndonesia", attackId), (docSnapshot) => {
+        //   const updatedData = docSnapshot.data();
+        //   if (updatedData.Status !== "Ongoing") {
+        //     // Menghapus elemen terkait dengan ID khusus
+        //     g.selectAll(
+        //       `.marker-${attackId}, .pulse-${attackId}, .line-${attackId}`
+        //     ).remove();
+        //     marker = null;
+        //     startPulseAnimation = false;
+        //   }
+        // });
       }
 
       function animateCountUpdate(element, newValue) {
@@ -653,438 +413,61 @@
       }
       let countOnGoing = [];
       // Fungsi untuk menghitung dan memperbarui jumlah Ongoing Attack
-      function updateOngoingAttackCount() {
-        // Ambil koleksi DDoSAttack dari Firestore
-        const ddosAttackCollection = collection(db, "DDosAttackIndonesia");
-
-        // Hitung jumlah record "Ongoing"
-        onSnapshot(ddosAttackCollection, (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            const currentTime = dayjs().utcOffset(7).toDate();
-            const data = { id: change.doc.id, ...change.doc.data() };
-
-            if (
-              (data.Status === "Ongoing" ||
-                (data.EndTime &&
-                  timestampToDate(data.EndTime) > currentTime)) &&
-              !countOnGoing.includes(data.id)
-            ) {
-              // Perbarui nilai pada elemen <h3>
-              animateCountUpdate(
-                document.getElementById("ongoing-attack-count"),
-                onGoingRedAttack.length + onGoingYellowAttack.length
-              );
-              countOnGoing.push(data.id);
-            } else {
-              if (
-                !(
-                  data.Status === "Ongoing" ||
-                  (data.EndTime && timestampToDate(data.EndTime) > currentTime)
-                ) &&
-                countOnGoing.includes(data.id)
-              ) {
-                // Perbarui nilai pada elemen <h3>
-                animateCountUpdate(
-                  document.getElementById("ongoing-attack-count"),
-                  onGoingRedAttack.length + onGoingYellowAttack.length
-                );
-                countOnGoing = countOnGoing.filter((item) => item !== data.id);
-              }
-            }
-          });
-        });
-      }
-
-      let countRedSeverity = [];
-      function updateRedSeverityOngoingAttackCount() {
-        // Ambil koleksi DDoSAttack dari Firestore
-        const ddosAttackCollection = collection(db, "DDosAttackIndonesia");
-
-        // Hitung jumlah record "Ongoing"
-        onSnapshot(ddosAttackCollection, (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            const currentTime = dayjs().utcOffset(7).toDate();
-            const data = { id: change.doc.id, ...change.doc.data() };
-
-            if (
-              (data.Status === "Ongoing" ||
-                (data.EndTime &&
-                  timestampToDate(data.EndTime) > currentTime)) &&
-              data.Severity.includes("red /") &&
-              !countRedSeverity.includes(data.id)
-            ) {
-              // Perbarui nilai pada elemen <h3>
-              animateCountUpdate(
-                document.getElementById("ongoing-attack-count-red"),
-                onGoingRedAttack.length
-              );
-              countRedSeverity.push(data.id);
-            } else {
-              if (
-                !(
-                  data.Status === "Ongoing" ||
-                  (data.EndTime && timestampToDate(data.EndTime) > currentTime)
-                ) &&
-                data.Severity.includes("red /") &&
-                countRedSeverity.includes(data.id)
-              ) {
-                // Perbarui nilai pada elemen <h3>
-                animateCountUpdate(
-                  document.getElementById("ongoing-attack-count-red"),
-                  onGoingRedAttack.length
-                );
-                countRedSeverity = countRedSeverity.filter(
-                  (item) => item !== data.id
-                );
-              }
-            }
-          });
-        });
-      }
-      let countYellowSeverity = [];
-      function updateYellowSeverityOngoingAttackCount() {
-        // Ambil koleksi DDoSAttack dari Firestore
-        const ddosAttackCollection = collection(db, "DDosAttackIndonesia");
-
-        // Hitung jumlah record "Ongoing"
-        onSnapshot(ddosAttackCollection, (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            const currentTime = dayjs().utcOffset(7).toDate();
-            const data = { id: change.doc.id, ...change.doc.data() };
-
-            if (
-              (data.Status === "Ongoing" ||
-                (data.EndTime &&
-                  timestampToDate(data.EndTime) > currentTime)) &&
-              data.Severity.includes("yellow /") &&
-              !countYellowSeverity.includes(data.id)
-            ) {
-              // Perbarui nilai pada elemen <h3>
-              animateCountUpdate(
-                document.getElementById("ongoing-attack-count-yellow"),
-                onGoingYellowAttack.length
-              );
-              countYellowSeverity.push(data.id);
-            } else {
-              if (
-                !(
-                  data.Status === "Ongoing" ||
-                  (data.EndTime && timestampToDate(data.EndTime) > currentTime)
-                ) &&
-                data.Severity.includes("yellow /") &&
-                countYellowSeverity.includes(data.id)
-              ) {
-                // Perbarui nilai pada elemen <h3>
-                animateCountUpdate(
-                  document.getElementById("ongoing-attack-count-yellow"),
-                  onGoingYellowAttack.length
-                );
-                countYellowSeverity = countYellowSeverity.filter(
-                  (element) => element !== data.id
-                );
-              }
-            }
-          });
-        });
-      }
-
-      function convertAverageBandwidth(bandwidth) {
-        let returnVal;
-        if (bandwidth / 1000000000 > 1) {
-          returnVal = (bandwidth / 1000000000).toString() + " Gbps";
-        } else if (bandwidth / 1000000 > 1) {
-          returnVal = (bandwidth / 1000000).toString() + " Mbps";
-        } else if (bandwidth / 1000 > 1) {
-          returnVal = (bandwidth / 1000).toString() + " Kbps";
-        } else {
-          returnVal = bandwidth.toString() + " bps";
-        }
-        return returnVal;
-      }
-
-      function isIdInTopAttack(topAttack, id) {
-        return topAttack.some((attack) => attack.id === id);
-      }
-      function updateTodoList(topAttack) {
-        const idsInTopAttack = new Set(topAttack.map((attack) => attack.id));
-        const existingItems = Array.from(todoList.children);
-        const itemMap = new Map();
-
-        // Buat peta ID ke elemen list
-        existingItems.forEach((item) => {
-          const id = item.dataset.id;
-          if (id) {
-            itemMap.set(id, item);
-          }
-        });
-        // Tambahkan atau perbarui item dalam daftar
-        topAttack.forEach((record) => {
-          let listItem = itemMap.get(record.id);
-          if (!listItem) {
-            listItem = document.createElement("li");
-            listItem.dataset.id = record.id; // Set ID di data attribute
-            listItem.addEventListener("click", () => showModal(record));
-          }
-
-          // Set class dan innerHTML sesuai dengan severity
-          if (record.Severity.includes("yellow /")) {
-            listItem.className = "completed";
-          } else if (record.Severity.includes("red /")) {
-            listItem.className = "not-completed";
-          }
-
-          listItem.innerHTML = `<p><b>${
-            record.VictimIp
-          }</b> (${convertAverageBandwidth(
-            record.AverageBandwidth
-          )})</p><i class="bx bx-dots-vertical-rounded"></i>`;
-
-          if (!listItem.parentNode) {
-            todoList.appendChild(listItem);
-          }
-
-          // Update itemMap
-          itemMap.set(record.id, listItem);
-        });
-
-        // Hapus item yang tidak lagi ada di topAttack
-        existingItems.forEach((item) => {
-          const id = item.dataset.id;
-          if (!idsInTopAttack.has(id)) {
-            todoList.removeChild(item);
-            itemMap.delete(id);
-          }
-        });
-
-        // Urutkan item dalam daftar sesuai dengan topAttack
-        Array.from(todoList.children)
-          .sort((a, b) => {
-            const idA = a.dataset.id;
-            const idB = b.dataset.id;
-            const attackA = topAttack.find((attack) => attack.id === idA);
-            const attackB = topAttack.find((attack) => attack.id === idB);
-
-            return attackB.AverageBandwidth - attackA.AverageBandwidth;
-          })
-          .forEach((item) => {
-            todoList.appendChild(item); // Menempatkan item di urutan yang benar
-          });
-      }
-
-      const todoList = document.querySelector(".todo-list");
-      const itemMap = new Map(); // Map untuk menyimpan referensi item berdasarkan ID
-
-      function showModal(record) {
-        document.getElementById("modal-id").textContent = record.id;
-        document.getElementById("modal-chk").textContent = record.CHK;
-        document.getElementById("modal-direction").textContent =
-          record.Direction;
-        document.getElementById("modal-resource").textContent = record.Resource;
-        document.getElementById("modal-severity").textContent = record.Severity;
-        document.getElementById("modal-starttime").textContent =
-          record.StartTime.toDate().toLocaleString();
-        document.getElementById("modal-type").textContent = record.Type;
-        document.getElementById("modal-victimip").textContent = record.VictimIp;
-        new bootstrap.Modal(document.getElementById("recordModal")).show();
-      }
-
-      function formatData(data) {
-        let avgBandwidth = data.Severity.split(" / ")[1];
-        let avgBandwidthArr = avgBandwidth.split(" ");
-        let avgBandwidthKiri = avgBandwidthArr[0];
-        let avgBandwidthKanan = avgBandwidthArr[1];
-        let pengali = 1;
-        if (avgBandwidthKiri.includes("bps")) {
-          avgBandwidthKiri = avgBandwidthKiri.replace("bps", "");
-
-          if (avgBandwidthKiri.includes("G")) {
-            pengali = 1000000000;
-            avgBandwidthKiri = avgBandwidthKiri.replace("G", "");
-            avgBandwidthKiri = parseFloat(avgBandwidthKiri);
-          } else if (avgBandwidthKiri.includes("M")) {
-            pengali = 1000000;
-            avgBandwidthKiri = avgBandwidthKiri.replace("M", "");
-            avgBandwidthKiri = parseFloat(avgBandwidthKiri);
-          } else if (avgBandwidthKiri.includes("K")) {
-            pengali = 1000;
-            avgBandwidthKiri = avgBandwidthKiri.replace("K", "");
-            avgBandwidthKiri = parseFloat(avgBandwidthKiri);
-          } else {
-            avgBandwidthKiri = parseFloat(avgBandwidthKiri);
-          }
-          return { ...data, AverageBandwidth: avgBandwidthKiri * pengali };
-        } else {
-          avgBandwidthKanan = avgBandwidthKanan.replace("bps", "");
-          avgBandwidthKanan = avgBandwidthKanan.replace("(", "");
-          avgBandwidthKanan = avgBandwidthKanan.replace(")", "");
-
-          if (avgBandwidthKanan.includes("G")) {
-            pengali = 1000000000;
-            avgBandwidthKanan = avgBandwidthKanan.replace("G", "");
-            avgBandwidthKanan = parseFloat(avgBandwidthKanan);
-          } else if (avgBandwidthKanan.includes("M")) {
-            pengali = 1000000;
-            avgBandwidthKanan = avgBandwidthKanan.replace("M", "");
-            avgBandwidthKanan = parseFloat(avgBandwidthKanan);
-          } else if (avgBandwidthKanan.includes("K")) {
-            pengali = 1000;
-            avgBandwidthKanan = avgBandwidthKanan.replace("K", "");
-            avgBandwidthKanan = parseFloat(avgBandwidthKanan);
-          } else {
-            avgBandwidthKanan = parseFloat(avgBandwidthKanan);
-          }
-          return { ...data, AverageBandwidth: avgBandwidthKanan * pengali };
-        }
-      }
-
-      function updateTopAttack(topAttack, newAttack) {
-        // Ambil currentTime dalam Waktu Indonesia Barat (WIB)
-        const currentTimeWIB = new Date(
-          new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" })
+      function updateOngoingAttackCount(event) {
+        const data = transformData(JSON.parse(event.data));
+        console.log(data);
+        // cek apakah serangan sudah ada di dalam countOnGoing (berdasarkan sourceIp dan destinationIp)
+        const newSourceIp = data.from.src;
+        const newDestIp = data.to.dst;
+        const include = countOnGoing.some(
+          (item) => item.sourceIp == newSourceIp && item.destIp == newDestIp
         );
-        const currentDay = currentTimeWIB.getDate();
-        const currentMonth = currentTimeWIB.getMonth();
-        const currentYear = currentTimeWIB.getFullYear();
-
-        // Cek apakah newAttack sudah ada di dalam topAttack berdasarkan id
-        const attackExists = topAttack.some(
-          (attack) => attack.id === newAttack.id
-        );
-
-        // Jika object tidak ada dalam topAttack
-        if (!attackExists) {
-          // Konversi StartTime dari Firebase timestamp menjadi objek Date
-          const startTimeInMillis =
-            newAttack.StartTime.seconds * 1000 +
-            newAttack.StartTime.nanoseconds / 1000000;
-          const startTime = new Date(startTimeInMillis);
-
-          // Cek apakah StartTime berada pada hari yang sama dengan currentTime (WIB)
-          const isSameDay =
-            startTime.getDate() === currentDay &&
-            startTime.getMonth() === currentMonth &&
-            startTime.getFullYear() === currentYear;
-
-          if (isSameDay) {
-            // Masukkan object ke dalam array pada posisi yang sesuai
-            let inserted = false;
-            for (let i = 0; i < topAttack.length; i++) {
-              if (newAttack.AverageBandwidth > topAttack[i].AverageBandwidth) {
-                topAttack.splice(i, 0, newAttack);
-                inserted = true;
-                break;
-              }
-            }
-
-            // Jika tidak ada object yang lebih besar, push ke akhir array
-            if (!inserted) {
-              topAttack.push(newAttack);
-            }
-
-            // Batasi topAttack menjadi hanya 10 object terbesar
-            if (topAttack.length > 10) {
-              topAttack.pop();
-            }
-          }
-        }
-        // filter dulu top attack sebelum return
-        topAttack = topAttack.filter((item) => {
-          const startTimeInMillis1 =
-            item.StartTime.seconds * 1000 +
-            item.StartTime.nanoseconds / 1000000;
-          const startTime1 = new Date(startTimeInMillis1);
-          return (
-            startTime1.getDate() === currentDay &&
-            startTime1.getMonth() === currentMonth &&
-            startTime1.getFullYear() === currentYear
+        if (data.Status === "Ongoing" && !include) {
+          // Perbarui nilai pada elemen <h3>
+          countOnGoing.push({ sourceIp: newSourceIp, destIp: newDestIp });
+          animateCountUpdate(
+            document.getElementById("ongoing-attack-count"),
+            countOnGoing.length
           );
-        });
-
-        return topAttack;
+        } else {
+          if (!(data.Status === "Ongoing") && include) {
+            countOnGoing = countOnGoing.filter(
+              (item) =>
+                item.sourceIp !== newSourceIp && item.destIp !== newDestIp
+            );
+            // Perbarui nilai pada elemen <h3>
+            animateCountUpdate(
+              document.getElementById("ongoing-attack-count"),
+              countOnGoing.length
+            );
+          }
+        }
       }
 
-      let topAttack = [];
-      // Fungsi untuk memulai listener untuk perubahan data secara real-time
       function listenToDDoSAttacks() {
-        const ddosAttackCollection = collection(db, "DDosAttackIndonesia");
-        // Memulai listener untuk memantau perubahan
-        onSnapshot(ddosAttackCollection, (snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const newAttackData = { id: change.doc.id, ...change.doc.data() };
-              const formatedData = formatData(newAttackData);
-              topAttack = updateTopAttack(topAttack, formatedData);
-              updateTodoList(topAttack);
-              if (
-                newAttackData.Status === "Ongoing" &&
-                !(
-                  onGoingRedAttack.includes(newAttackData.id) ||
-                  onGoingYellowAttack.includes(newAttackData.id)
-                )
-              ) {
-                renderMarkerByStatus(newAttackData);
-              } else {
-                if (
-                  !(
-                    onGoingRedAttack.includes(newAttackData.id) ||
-                    onGoingYellowAttack.includes(newAttackData.id)
-                  )
-                ) {
-                  renderMarkerByEndTime(newAttackData);
-                }
-              }
-              addOnGoingAttack(newAttackData);
-            }
-            if (change.type === "modified") {
-              const newAttackData = { id: change.doc.id, ...change.doc.data() };
-              const formatedData = formatData(newAttackData);
-              topAttack = updateTopAttack(topAttack, formatedData);
-              updateTodoList(topAttack);
-              if (
-                newAttackData.Status === "Ongoing" &&
-                !(
-                  onGoingRedAttack.includes(newAttackData.id) ||
-                  onGoingYellowAttack.includes(newAttackData.id)
-                )
-              ) {
-                renderMarkerByStatus(newAttackData);
-              } else {
-                if (
-                  !(
-                    onGoingRedAttack.includes(newAttackData.id) ||
-                    onGoingYellowAttack.includes(newAttackData.id)
-                  )
-                ) {
-                  renderMarkerByEndTime(newAttackData);
-                }
-              }
-              addOnGoingAttack(newAttackData);
-              removeOnGoingAttack(newAttackData);
-            }
-            if (change.type === "removed") {
-              const removedAttackdata = {
-                id: change.doc.id,
-                ...change.doc.data(),
-              };
-              const formatedData = formatData(removedAttackdata);
-              topAttack = updateTopAttack(topAttack, formatedData);
-              updateTodoList(topAttack);
-              const removedItem = itemMap.get(change.doc.id);
-              if (removedItem) {
-                todoList.removeChild(removedItem);
-                itemMap.delete(change.doc.id);
-              }
-              removeOnGoingAttack(removedAttackdata);
-            }
-          });
-        });
+        ws.onmessage = (event) => {
+          const newAttackData = transformData(JSON.parse(event.data));
+          console.log(newAttackData);
+
+          if (
+            newAttackData.Status === "Ongoing" &&
+            !includeInArray(newAttackData, onGoingAttack)
+          ) {
+            renderMarkerByStatus(newAttackData);
+            updateOngoingAttackCount(event);
+            onGoingAttack.push({
+              sourceIp: newAttackData.from.src,
+              destIp: newAttackData.to.dst,
+            });
+          }
+        };
       }
 
       // Panggil fungsi untuk memulai listener
       listenToDDoSAttacks();
-      updateOngoingAttackCount();
-      updateRedSeverityOngoingAttackCount();
-      updateYellowSeverityOngoingAttackCount();
+      // updateOngoingAttackCount();
+      // updateRedSeverityOngoingAttackCount();
+      // updateYellowSeverityOngoingAttackCount();
 
       // TOOLTIP
       // Dapatkan referensi ke tooltip
