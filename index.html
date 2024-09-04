@@ -264,15 +264,9 @@
       dayjs.extend(utc);
 
       const firebaseConfig = {
-        apiKey: "AIzaSyDzNSCSlTiMSBxf7zQxhu3dndEvuD2dDvU",
-        authDomain: "attack-project-e76d9.firebaseapp.com",
-        projectId: "attack-project-e76d9",
-        storageBucket: "attack-project-e76d9.appspot.com",
-        messagingSenderId: "695858311909",
-        appId: "1:695858311909:web:e782027cd98f883c991a0c",
-        measurementId: "G-83WY3CG3VN",
+        // YOUR FIREABASE CONFIG
       };
-      const ipInfoToken = "3949280a8aa576";
+      const ipInfoToken = "YOUR IP INFO TOKEN";
 
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
@@ -361,12 +355,12 @@
           let marker;
 
           const getGeoLocation = (ip) =>
-            fetch(`https://ipinfo.io/${ip}/geo?token=3949280a8aa576`).then(
+            fetch(`https://ipinfo.io/${ip}/geo?token=${ipInfoToken}`).then(
               (response) => response.json()
             );
           const getArrayGeolocation = (ips) => {
             const promises = ips.map((ip) =>
-              fetch(`https://ipinfo.io/${ip}/geo?token=3949280a8aa576`).then(
+              fetch(`https://ipinfo.io/${ip}/geo?token=${ipInfoToken}`).then(
                 (response) => response.json()
               )
             );
@@ -583,13 +577,13 @@
         let startPulseAnimation, marker;
 
         const getGeoLocation = (ip) =>
-          fetch(`https://ipinfo.io/${ip}/geo?token=3949280a8aa576`).then(
+          fetch(`https://ipinfo.io/${ip}/geo?token=${ipInfoToken}`).then(
             (response) => response.json()
           );
 
         const getArrayGeolocation = (ips) => {
           const promises = ips.map((ip) =>
-            fetch(`https://ipinfo.io/${ip}/geo?token=3949280a8aa576`).then(
+            fetch(`https://ipinfo.io/${ip}/geo?token=${ipInfoToken}`).then(
               (response) => response.json()
             )
           );
