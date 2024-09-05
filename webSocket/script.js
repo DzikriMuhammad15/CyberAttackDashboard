@@ -2,22 +2,23 @@ const fs = require('fs');
 const mysql = require('mysql');
 const express = require('express');
 const WebSocket = require('ws');
+require('dotenv').config();
 
 const app = express();
 const port = 3000;
 
-// // Setup MySQL connection
-// const connection = mysql.createConnection({
-//   host: 'localhost',
-//   user: 'root', // Sesuaikan dengan user MySQL Anda
-//   password: '', // Sesuaikan dengan password MySQL Anda
-//   database: 'jsondata'
-// });
+// Setup MySQL connection
+const connection = mysql.createConnection({
+    host: 'localhost',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB
+});
 
-// connection.connect((err) => {
-//     if (err) throw err;
-//     console.log('Connected to MySQL');
-// });
+connection.connect((err) => {
+    if (err) throw err;
+    console.log('Connected to MySQL');
+});
 
 // Baca file JSON
 
@@ -74,10 +75,33 @@ function parseMessage(message_line) {
     parsed_message_line.action.deviceSeverity = newMessageLineJSON.deviceSeverity;
     parsed_message_line.action.severity = newMessageLineJSON.severity;
 
-    console.log(parsed_message_line);
+    console.log(newMessageLineJSON);
 
     // data di dalam parsed_message_line dapat disimpan didalam database dengan memanggil function nya
     // ...
+    const query = `INSERT INTO logs (src, slong, slat, sourceGeoCountryCode, sourceGeoLocationInfo, dst, dlong, dlat, destinationGeoCountryCode, destinationGeoLocationInfo, dvchost, cs5, act, deviceSeverity, severity) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    connection.query(query, [
+        parsed_message_line.from.src,
+        parsed_message_line.from.lng,
+        parsed_message_line.from.lat,
+        parsed_message_line.from.sourceGeoCountryCode,
+        parsed_message_line.from.sourceGeoLocationInfo,
+        parsed_message_line.to.dst,
+        parsed_message_line.to.lng,
+        parsed_message_line.to.lat,
+        parsed_message_line.to.destinationGeoCountryCode,
+        parsed_message_line.to.destinationGeoLocationInfo,
+        parsed_message_line.to.dvchost,
+        parsed_message_line.to.cs5,
+        parsed_message_line.action.act,
+        parsed_message_line.action.deviceSeverity,
+        parsed_message_line.action.severity
+    ], (err, result) => {
+        if (err) throw err;
+        console.log('Data inserted to MySQL:', result.insertId);
+    });
 
     // function ini mengembalikan data parsed_message_line
     // yang dimana dapat digunakan di function yang akan foward data ini ke FE melalui websocket
@@ -95,8 +119,8 @@ let message = eval(fs.readFileSync("./bin/sys.log", "utf-8"));
 // // Simpan data ke database sebagai log
 // function logDataToDatabase(data) {
 //     data.forEach(item => {
-//         const key = item.key; // Ubah sesuai dengan struktur JSON Anda
-//         const value = JSON.stringify(item.value); // Ubah sesuai dengan struktur JSON Anda
+//         const key = item.key; 
+//         const value = JSON.stringify(item.value);
 
 //         connection.query('INSERT INTO data (key_name, value) VALUES (?, ?)', [key, value], (err, result) => {
 //             if (err) throw err;

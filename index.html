@@ -103,6 +103,18 @@
         stroke-width: 2px;
         opacity: 0.7;
       }
+      /* Pastikan untuk menyertakan Bootstrap CSS dalam proyek Anda, jika belum */
+      .modal-content {
+        background-color: #1e1e1e; /* Dark background */
+        color: white; /* Light text color */
+      }
+
+      /* Modal Footer */
+      .modal-footer {
+        border-top: 1px solid #444; /* Sesuaikan dengan desain Anda */
+      }
+
+      /* Pastikan Bootstrap CSS sudah ada di proyek */
     </style>
   </head>
   <body class="dark">
@@ -122,38 +134,9 @@
             <p>On-going Attack</p>
           </span>
         </li>
-        <li>
-          <i
-            class="fa-solid fa-triangle-exclamation fa-2xl"
-            style="color: #ff0000"
-          ></i>
-          <span class="text">
-            <h3 id="ongoing-attack-count-red">0</h3>
-            <p>Red Severity On-going Attack</p>
-          </span>
-        </li>
-        <li>
-          <i
-            class="fa-solid fa-triangle-exclamation fa-2xl"
-            style="color: #ffd43b"
-          ></i>
-          <span class="text">
-            <h3 id="ongoing-attack-count-yellow">0</h3>
-            <p>Yellow Severity On-going Attack</p>
-          </span>
-        </li>
       </ul>
       <div id="map-container">
         <svg></svg>
-      </div>
-
-      <div class="table-data">
-        <div class="todo">
-          <div class="head">
-            <h3>Top Targeted IP</h3>
-          </div>
-          <ul class="todo-list"></ul>
-        </div>
       </div>
     </main>
     <!-- MAIN -->
@@ -204,19 +187,37 @@
       </div>
     </div>
 
-    <!-- TOOLTIP -->
+    <!-- Modal -->
     <div
-      id="tooltip"
-      style="
-        position: absolute;
-        background: #fff;
-        border: 1px solid #ddd;
-        padding: 5px;
-        border-radius: 3px;
-        pointer-events: none;
-        display: none;
-      "
-    ></div>
+      id="detailMapAttack"
+      class="modal fade"
+      tabindex="-1"
+      role="dialog"
+      aria-labelledby="modalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalLabel">Attack Details</h5>
+            <!-- Tidak ada tombol close di header -->
+          </div>
+          <div class="modal-body" id="modal-body">
+            <!-- Data akan dimasukkan di sini oleh JavaScript -->
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- JavaScript SDK -->
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script
@@ -281,6 +282,52 @@
         );
       }
 
+      // Gunakan jQuery atau Vanilla JS untuk menampilkan modal dengan Bootstrap
+      function showModal(data) {
+        const modalBody = document.getElementById("modal-body");
+
+        modalBody.innerHTML = `
+    <strong>From:</strong> <br>
+    <ul>
+      <li><p>src: ${data.from.src || "N/A"}</p></li>
+      <li><p>lat: ${data.from.lat || "N/A"}</p></li>
+      <li><p>lng: ${data.from.lng || "N/A"}</p></li>
+      <li><p>sourceGeoCountryCode: ${
+        data.from.sourceGeoCountryCode || "N/A"
+      }</p></li>
+      <li><p>sourceGeoLocationInfo: ${
+        data.from.sourceGeoLocationInfo || "N/A"
+      }</p></li>
+    </ul><br>
+    <strong>To:</strong> <br>
+    <ul>
+      <li><p>dst: ${data.to.dst || "N/A"}</p></li>
+      <li><p>lat: ${data.to.lat || "N/A"}</p></li>
+      <li><p>lng: ${data.to.lng || "N/A"}</p></li>
+      <li><p>dvchost: ${data.to.dvchost || "N/A"}</p></li>
+      <li><p>cs5: ${data.to.cs5 || "N/A"}</p></li>
+      <li><p>destinationGeoCountryCode: ${
+        data.to.destinationGeoCountryCode || "N/A"
+      }</p></li>
+      <li><p>destinationGeoLocationInfo: ${
+        data.to.destinationGeoLocationInfo || "N/A"
+      }</p></li>
+    </ul><br>
+    <strong>Action:</strong> <br>
+    <ul>
+      <li><p>act: ${data.action.act || "N/A"}</p></li>
+      <li><p>deviceSeverity: ${data.action.deviceSeverity || "N/A"}</p></li>
+      <li><p>severity: ${data.action.severity || "N/A"}</p></li>
+    </ul><br>
+  `;
+
+        // Gunakan Bootstrap modal method untuk menampilkan modal
+        var myModal = new bootstrap.Modal(
+          document.getElementById("detailMapAttack")
+        );
+        myModal.show();
+      }
+
       function renderMarkerByStatus(el) {
         const attackId = el.from.src + el.to.dst;
         let startPulseAnimation, marker;
@@ -329,8 +376,9 @@
             .attr("cx", destCoords[0])
             .attr("cy", destCoords[1])
             .attr("r", 5)
-            .on("mouseover", (event) => showTooltip(event, el))
-            .on("mouseout", hideTooltip);
+            .on("click", (event) => {
+              showModal(el);
+            });
 
           startPulseAnimation = true;
           createPulse();
@@ -468,33 +516,6 @@
       // updateOngoingAttackCount();
       // updateRedSeverityOngoingAttackCount();
       // updateYellowSeverityOngoingAttackCount();
-
-      // TOOLTIP
-      // Dapatkan referensi ke tooltip
-      const tooltip = select("#tooltip");
-
-      // Fungsi untuk menampilkan tooltip
-      function showTooltip(event, data) {
-        tooltip
-          .style("left", `${event.pageX + 10}px`) // Posisi tooltip sedikit offset dari kursor
-          .style("top", `${event.pageY + 10}px`)
-          .style("display", "block")
-          .style("background-color", "#060714") // Background berwarna #060714
-          .style("color", "white") // Teks berwarna putih
-          .html(`
-        <strong>Resource:</strong> ${data.Resource}<br>
-        <strong>Type:</strong> ${data.Type}<br>
-        <strong>Victim IP:</strong> ${data.VictimIp}<br>
-        <strong>Start Time:</strong> ${dayjs(data.StartTime.toDate()).format(
-          "YYYY-MM-DD HH:mm:ss"
-        )}
-      `);
-      }
-
-      // Fungsi untuk menyembunyikan tooltip
-      function hideTooltip() {
-        tooltip.style("display", "none");
-      }
 
       // Kode untuk memuat peta dan melakukan setup D3.js
       // Kode untuk memuat peta dan melakukan setup D3.js
