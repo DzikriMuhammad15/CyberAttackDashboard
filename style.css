@@ -359,7 +359,20 @@ main .table-data .todo {
 main .table-data .todo .todo-list {
   width: 100%;
 }
+main .table-data .todo .ongoing-todo-list {
+  width: 100%;
+}
 main .table-data .todo .todo-list li {
+  width: 100%;
+  margin-bottom: 16px;
+  background: var(--grey);
+  border-radius: 10px;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+main .table-data .todo .ongoing-todo-list li {
   width: 100%;
   margin-bottom: 16px;
   background: var(--grey);
@@ -372,13 +385,25 @@ main .table-data .todo .todo-list li {
 main .table-data .todo .todo-list li .bx {
   cursor: pointer;
 }
+main .table-data .todo .ongoing-todo-list li .bx {
+  cursor: pointer;
+}
 main .table-data .todo .todo-list li.completed {
+  border-left: 10px solid var(--yellow);
+}
+main .table-data .todo .ongoing-todo-list li.completed {
   border-left: 10px solid var(--yellow);
 }
 main .table-data .todo .todo-list li.not-completed {
   border-left: 10px solid var(--red);
 }
+main .table-data .todo .ongoing-todo-list li.not-completed {
+  border-left: 10px solid var(--red);
+}
 main .table-data .todo .todo-list li:last-child {
+  margin-bottom: 0;
+}
+main .table-data .todo .ongoing-todo-list li:last-child {
   margin-bottom: 0;
 }
 /* MAIN */
@@ -442,6 +467,9 @@ main .table-data .todo .todo-list li:last-child {
     min-width: 420px;
   }
   main .table-data .todo .todo-list {
+    min-width: 420px;
+  }
+  main .table-data .todo .ongoing-todo-list {
     min-width: 420px;
   }
 }
