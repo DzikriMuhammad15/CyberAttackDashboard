@@ -4,6 +4,7 @@ const express = require('express');
 const WebSocket = require('ws');
 require('dotenv').config();
 
+
 const app = express();
 const port = 3000;
 
@@ -132,15 +133,23 @@ function saveToDatabase(data) {
 
 function parseMessage(message_line) {
     const jsonData = parseLogString(message_line);
-    saveToDatabase(jsonData);
+    // saveToDatabase(jsonData);
     return jsonData;
 }
 
 
-let message = fs.readFileSync("file.json", "utf-8");
-let message2 = fs.readFileSync("file2.json", "utf-8");
+let message = fs.readFileSync("./bin/geni_log_1.json", "utf-8");
+let message2 = fs.readFileSync("./bin/geni_log_2.json", "utf-8");
 
-let messages = [message, message2]
+let json_1 = fs.readFileSync("./bin/json_1.json", "utf-8");
+let json_2 = fs.readFileSync("./bin/json_2.json", "utf-8");
+let json_3 = fs.readFileSync("./bin/json_3.json", "utf-8");
+let json_4 = fs.readFileSync("./bin/json_4.json", "utf-8");
+let sebelum_json_1 = fs.readFileSync("./bin/sebelum_json_1.json", "utf-8");
+let sebelum_json_3 = fs.readFileSync("./bin/sebelum_json_3.json", "utf-8");
+
+
+let messages = [message, message2, json_1, json_2, json_3, json_4, sebelum_json_1, sebelum_json_3]
 console.log();
 
 
@@ -168,19 +177,102 @@ wss.on('connection', (ws) => {
     console.log('Client connected');
 
     // Kirim data ke frontend
+    // setTimeout(() => {
+    //     let rnd = Math.floor(Math.random() * Math.floor(1));
+    //     const jsonStringMessage = JSON.parse(messages[1]).fields["event.original"][0]
+    //     let info = JSON.stringify(parseMessage(jsonStringMessage));
+    //     ws.send(info)
+    // }, 10000);
+
+    // setTimeout(() => {
+    //     let rnd = Math.floor(Math.random() * Math.floor(1));
+    //     const jsonStringMessage = JSON.parse(messages[0]).fields["event.original"][0]
+    //     let info = JSON.stringify(parseMessage(jsonStringMessage));
+    //     ws.send(info)
+    // }, 310000)
+
+
+
+    // !todo SKEMA A
+    // sebelum json 3 - sebelum json 1 - json 1 - json 2 - json 3 - message 2 - json 4 - message
+    setTimeout(() => {
+        let rnd = Math.floor(Math.random() * Math.floor(1));
+        const jsonStringMessage = JSON.parse(messages[7]).fields["event.original"][0]
+        let info = JSON.stringify(parseMessage(jsonStringMessage));
+        ws.send(info)
+        console.log({ sebelum_json_3: JSON.parse(info) });
+    }, 1000)
+    setTimeout(() => {
+        let rnd = Math.floor(Math.random() * Math.floor(1));
+        const jsonStringMessage = JSON.parse(messages[6]).fields["event.original"][0]
+        let info = JSON.stringify(parseMessage(jsonStringMessage));
+        ws.send(info)
+        console.log({ sebelum_json_1: JSON.parse(info) });
+    }, 21000)
+    setTimeout(() => {
+        let rnd = Math.floor(Math.random() * Math.floor(1));
+        const jsonStringMessage = JSON.parse(messages[2]).fields["event.original"][0]
+        let info = JSON.stringify(parseMessage(jsonStringMessage));
+        ws.send(info)
+        console.log({ json_1: JSON.parse(info) });
+    }, 41000)
+    setTimeout(() => {
+        let rnd = Math.floor(Math.random() * Math.floor(1));
+        const jsonStringMessage = JSON.parse(messages[3]).fields["event.original"][0]
+        let info = JSON.stringify(parseMessage(jsonStringMessage));
+        ws.send(info)
+        console.log({ json_2: JSON.parse(info) });
+    }, 61000)
+    setTimeout(() => {
+        let rnd = Math.floor(Math.random() * Math.floor(1));
+        const jsonStringMessage = JSON.parse(messages[4]).fields["event.original"][0]
+        let info = JSON.stringify(parseMessage(jsonStringMessage));
+        ws.send(info)
+        console.log({ json_3: JSON.parse(info) });
+    }, 81000)
     setTimeout(() => {
         let rnd = Math.floor(Math.random() * Math.floor(1));
         const jsonStringMessage = JSON.parse(messages[1]).fields["event.original"][0]
         let info = JSON.stringify(parseMessage(jsonStringMessage));
         ws.send(info)
-    }, 10000);
-
+        console.log({ message2: JSON.parse(info) });
+    }, 101000)
+    setTimeout(() => {
+        let rnd = Math.floor(Math.random() * Math.floor(1));
+        const jsonStringMessage = JSON.parse(messages[5]).fields["event.original"][0]
+        let info = JSON.stringify(parseMessage(jsonStringMessage));
+        ws.send(info)
+        console.log({ json4: JSON.parse(info) });
+    }, 121000)
     setTimeout(() => {
         let rnd = Math.floor(Math.random() * Math.floor(1));
         const jsonStringMessage = JSON.parse(messages[0]).fields["event.original"][0]
         let info = JSON.stringify(parseMessage(jsonStringMessage));
         ws.send(info)
-    }, 310000)
+        console.log({ message: JSON.parse(info) });
+    }, 141000)
+
+    // ! skema b
+
+    // setTimeout(() => {
+    //     let rnd = Math.floor(Math.random() * Math.floor(1));
+    //     const jsonStringMessage = JSON.parse(messages[7]).fields["event.original"][0]
+    //     let info = JSON.stringify(parseMessage(jsonStringMessage));
+    //     ws.send(info)
+    //     console.log({ message1: JSON.parse(info) });
+    // }, 1000)
+    // setTimeout(() => {
+    //     let rnd = Math.floor(Math.random() * Math.floor(1));
+    //     const jsonStringMessage = JSON.parse(messages[4]).fields["event.original"][0]
+    //     let info = JSON.stringify(parseMessage(jsonStringMessage));
+    //     ws.send(info)
+    //     console.log({ json_3: JSON.parse(info) });
+    // }, 11000)
+
+
+
+
+
     console.log()
 
     // Simpan data ke database sebagai log

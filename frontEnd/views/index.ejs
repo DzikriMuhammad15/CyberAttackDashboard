@@ -1,0 +1,292 @@
+<!-- Portions of this software use code licensed under the MIT License: Copyright (c)
+2024 Fajar Nur Wahid, Adil Shalikh -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Boxicons -->
+    <link
+      href="https://unpkg.com/boxicons@2.0.9/css/boxicons.min.css"
+      rel="stylesheet"
+    />
+    <!-- My CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
+    <link rel="stylesheet" href="/styles/style.css" />
+    <link rel="icon" href="/img/logoTelkom.png" type="image/x-icon" />
+    <script src="https://cdn.jsdelivr.net/npm/animejs@3.2.1/lib/anime.min.js"></script>
+    <title>DDoS Threat Map</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"
+      integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <style>
+      #map-container {
+        width: 75vw;
+        height: 75vh;
+        padding: 10px;
+        background-color: #060714;
+        border-radius: 15px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        border: 1px solid #ddd;
+        margin-left: 12.25vw;
+        margin-top: 10vh;
+      }
+
+      svg {
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+      }
+
+      .land {
+        fill: grey;
+        stroke: #333;
+        stroke-width: 0.5px;
+      }
+
+      .land:hover {
+        fill: blue;
+      }
+
+      .markerRed {
+        fill: red;
+        stroke: black;
+        stroke-width: 1px;
+      }
+      .markerYellow {
+        fill: yellow;
+        stroke: black;
+        stroke-width: 1px;
+      }
+
+      .pulseRed {
+        fill: none;
+        stroke: red;
+        stroke-width: 2px;
+        opacity: 0.7;
+      }
+      .pulseYellow {
+        fill: none;
+        stroke: yellow;
+        stroke-width: 2px;
+        opacity: 0.7;
+      }
+      .modal-content {
+        background-color: #1e1e1e;
+        color: white;
+      }
+
+      .modal-header {
+        border-bottom: 1px solid #444;
+      }
+
+      .modal-footer {
+        border-top: 1px solid #444;
+      }
+
+      .lineRed {
+        fill: none;
+        stroke: red;
+        stroke-width: 2px;
+        opacity: 0.7;
+      }
+      .lineYellow {
+        fill: none;
+        stroke: yellow;
+        stroke-width: 2px;
+        opacity: 0.7;
+      }
+    </style>
+  </head>
+  <body class="dark">
+    <!-- NAVBAR -->
+    <nav>
+      <img src="./img/logoTelkom.png" id="logo" />
+    </nav>
+    <!-- NAVBAR -->
+
+    <!-- MAIN -->
+    <main>
+      <ul class="box-info">
+        <li>
+          <i class="fa-solid fa-land-mine-on fa-2xl" style="color: #74c0fc"></i>
+          <span class="text">
+            <h3 id="ongoing-attack-count">0</h3>
+            <p>On-going Attack</p>
+          </span>
+        </li>
+        <li>
+          <i
+            class="fa-solid fa-triangle-exclamation fa-2xl"
+            style="color: #ff0000"
+          ></i>
+          <span class="text">
+            <h3 id="ongoing-attack-count-red">0</h3>
+            <p>Red Severity On-going Attack</p>
+          </span>
+        </li>
+        <li>
+          <i
+            class="fa-solid fa-triangle-exclamation fa-2xl"
+            style="color: #ffd43b"
+          ></i>
+          <span class="text">
+            <h3 id="ongoing-attack-count-yellow">0</h3>
+            <p>Yellow Severity On-going Attack</p>
+          </span>
+        </li>
+      </ul>
+      <div id="map-container">
+        <svg></svg>
+      </div>
+
+      <div class="table-data">
+        <div class="todo">
+          <div class="head">
+            <h3>Top Attack Duration In Current Month</h3>
+          </div>
+          <ul class="todo-list"></ul>
+        </div>
+        <div class="todo">
+          <div class="head">
+            <h3>Top Ongoing Attack Duration</h3>
+          </div>
+          <ul class="ongoing-todo-list"></ul>
+        </div>
+      </div>
+    </main>
+    <!-- MAIN -->
+
+    <!-- Modal HTML -->
+    <div
+      class="modal fade"
+      id="recordModal"
+      tabindex="-1"
+      aria-labelledby="recordModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="recordModalLabel">Attack Details</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body" id="modal-body">
+            <p><strong>Anomaly ID:</strong> <span id="modal-id"></span></p>
+            <p>
+              <strong>Creation Time:</strong>
+              <span id="modal-creationtime"></span>
+            </p>
+            <p>
+              <strong>Update Time:</strong> <span id="modal-updatetime"></span>
+            </p>
+            <p><strong>Type:</strong> <span id="modal-type"></span></p>
+            <p><strong>Sub-type:</strong> <span id="modal-subtype"></span></p>
+            <p><strong>Scope:</strong> <span id="modal-scope"></span></p>
+            <p><strong>Severity:</strong> <span id="modal-severity"></span></p>
+            <p><strong>Status:</strong> <span id="modal-status"></span></p>
+            <p>
+              <strong>Direction:</strong> <span id="modal-direction"></span>
+            </p>
+            <p><strong>Resource:</strong> <span id="modal-resource"></span></p>
+            <p>
+              <strong>Resource ID:</strong> <span id="modal-resourceid"></span>
+            </p>
+            <p>
+              <strong>Importance:</strong> <span id="modal-importance"></span>
+            </p>
+            <p>
+              <strong>Triggered Value:</strong>
+              <span id="modal-triggeredvalue"></span>
+            </p>
+            <p>
+              <strong>Threshold:</strong> <span id="modal-threshold"></span>
+            </p>
+            <p><strong>Unit:</strong> <span id="modal-unit"></span></p>
+            <p>
+              <strong>Anomaly Host IP:</strong>
+              <span id="modal-anomalyip"></span>
+            </p>
+            <p><strong>SIP1:</strong> <span id="modal-sip1"></span></p>
+            <p><strong>SIP2:</strong> <span id="modal-sip2"></span></p>
+            <p><strong>SIP3:</strong> <span id="modal-sip3"></span></p>
+            <p><strong>SPort1:</strong> <span id="modal-sport1"></span></p>
+            <p><strong>SPort2:</strong> <span id="modal-sport2"></span></p>
+            <p><strong>Protocol:</strong> <span id="modal-protocol"></span></p>
+            <p><strong>Remarks:</strong> <span id="modal-remarks"></span></p>
+            <p>
+              <strong>Attack Direction:</strong>
+              <span id="modal-attackdirection"></span>
+            </p>
+
+            <!-- Move ul outside of the p tag -->
+            <p><strong>Source IP:</strong></p>
+            <ul id="modal-sourceip"></ul>
+
+            <p>
+              <strong>StartTime:</strong> <span id="modal-starttime"></span>
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOOLTIP -->
+    <div
+      id="tooltip"
+      style="
+        position: absolute;
+        background: #fff;
+        border: 1px solid #ddd;
+        padding: 5px;
+        border-radius: 3px;
+        pointer-events: none;
+        display: none;
+      "
+    ></div>
+    <!-- JavaScript SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"
+      integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"
+      integrity="sha384-0pUGZvbkm6XF6gxjEnlmuGrJXVbNuzT9qBBavbLwCsOGabYfZo0T0to5eqruptLy"
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/topojson@3"></script>
+    <script src="/scripts/mainScript.js" type="module"></script>
+  </body>
+</html>
